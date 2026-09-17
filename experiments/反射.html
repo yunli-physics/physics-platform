@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反射</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>反射</h1>
+  <p class="desc">光的反射定律：反射角等于入射角。调节入射角 θ₁，观察入射光（红）与反射光（蓝）。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="th">入射角 θ₁ (°)</label>
+      <input type="range" id="th" min="0" max="89" step="1" value="30">
+      <span class="val" id="thv">30°</span>
+    </div>
+  </div>
+  <canvas id="cv" width="600" height="450"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  // PlotRange {{-2,2},{-1.5,1.5}}
+  var xMin=-2, xMax=2, yMin=-1.5, yMax=1.5;
+  var thetaDeg = 30;
+
+  function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+  function sy(y){ return H - (y-yMin)/(yMax-yMin)*H; }
+
+  function drawArrow(x1,y1,x2,y2,color){
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.stroke();
+    var ang = Math.atan2(sy(y2)-sy(y1), sx(x2)-sx(x1));
+    var s=10;
+    ctx.beginPath();
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2)-s*Math.cos(ang-Math.PI/7), sy(y2)-s*Math.sin(ang-Math.PI/7));
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2)-s*Math.cos(ang+Math.PI/7), sy(y2)-s*Math.sin(ang+Math.PI/7));
+    ctx.stroke();
+  }
+
+  function drawGrid(){
+    // Inset Grid at {-1.7,-1.2}
+    var rows = [['入射角 θ₁', thetaDeg.toFixed(1)+'°'],
+                ['反射角 θ₂', thetaDeg.toFixed(1)+'°'],
+                ['规律','反射角 = 入射角']];
+    var x0 = -1.7, y0 = -1.2;
+    var cw1 = 1.25, cw2 = 0.95, rh = 0.32;
+    ctx.font = '13px "Microsoft YaHei", sans-serif';
+    for(var i=0;i<rows.length;i++){
+      var yy = y0 + i*rh;
+      ctx.strokeStyle = '#999'; ctx.lineWidth=1;
+      ctx.strokeRect(sx(x0), sy(yy+rh), (cw1+cw2)/(xMax-xMin)*W, rh/(yMax-yMin)*H);
+      ctx.fillStyle='#222'; ctx.textAlign='left'; ctx.textBaseline='middle';
+      ctx.fillText(rows[i][0], sx(x0)+5, sy(yy+rh/2));
+      ctx.fillText(rows[i][1], sx(x0+cw1)+5, sy(yy+rh/2));
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+    var th = thetaDeg*Math.PI/180;
+    // 反射面
+    ctx.strokeStyle='#000'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(sx(-2),sy(0)); ctx.lineTo(sx(2),sy(0)); ctx.stroke();
+    // 法线（虚线灰）
+    ctx.strokeStyle='#888'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(-1.5)); ctx.lineTo(sx(0),sy(1.5)); ctx.stroke();
+    ctx.setLineDash([]);
+    // 入射光（红）
+    drawArrow(-1.2*Math.tan(th), 1.2, 0, 0, '#e53935');
+    // 反射光（蓝）
+    drawArrow(0, 0, 1.2*Math.tan(th), 1.2, '#1e88e5');
+    // 文字
+    ctx.fillStyle='#000'; ctx.font='bold 15px "Microsoft YaHei", sans-serif';
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillText('反射面', sx(1.2), sy(0)+16);
+    drawGrid();
+  }
+
+  var el = document.getElementById('th'), out = document.getElementById('thv');
+  el.addEventListener('input', function(){
+    thetaDeg = parseFloat(el.value);
+    out.textContent = thetaDeg.toFixed(0)+'°';
+    draw();
+  });
+  el.value = thetaDeg;
+  draw();
+})();
+</script>
+</body>
+</html>
