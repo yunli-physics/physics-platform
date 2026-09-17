@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>曲线运动</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .panel h3 { font-size: 15px; margin: 6px 0 8px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 160px; }
+  .ctrl .val { width: 60px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .setter { display: flex; gap: 8px; flex-wrap: wrap; }
+  .setter button { padding: 6px 12px; font-size: 13px; border: 1px solid #ccc;
+                   border-radius: 6px; background: #fff; cursor: pointer; }
+  .setter button.on { background: #1565c0; color: #fff; border-color: #1565c0; }
+  .playbtn { padding: 4px 14px; font-size: 13px; border: 1px solid #1565c0;
+             border-radius: 6px; background: #1565c0; color: #fff; cursor: pointer; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  .readout { font-size: 14px; line-height: 1.9; }
+  .readout b.k { color: #444; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>曲线运动（核心规律）</h1>
+  <p class="desc">沿参数轨迹运动，观察切线速度方向与合力方向的夹角。当合力与速度不共线时为曲线运动，合力指向轨迹凹侧。</p>
+
+  <div class="panel">
+    <h3>轨迹类型</h3>
+    <div class="setter" id="ctype">
+      <button data-v="1" class="on">摆线</button>
+      <button data-v="2">抛物线</button>
+      <button data-v="3">正弦曲线</button>
+      <button data-v="4">圆弧</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>运动与受力</h3>
+    <div class="ctrl">
+      <label for="tShow">运动位置 t</label>
+      <input type="range" id="tShow" min="0.01" max="3.99" step="0.01" value="0.5">
+      <span class="val" id="tShowv">0.50</span>
+      <button class="playbtn" id="play">▶ 播放</button>
+    </div>
+    <div class="ctrl">
+      <label for="forceAngle">合力方向 (度)</label>
+      <input type="range" id="forceAngle" min="0" max="360" step="5" value="135">
+      <span class="val" id="forceAnglev">135°</span>
+    </div>
+    <div class="ctrl">
+      <label for="arrowScale">箭头长度</label>
+      <input type="range" id="arrowScale" min="0.3" max="2.0" step="0.1" value="0.9">
+      <span class="val" id="arrowScalev">0.9</span>
+    </div>
+    <div class="ctrl">
+      <label>显示标注</label>
+      <div class="setter" id="showAnn">
+        <button data-v="1" class="on">开</button>
+        <button data-v="0">关</button>
+      </div>
+    </div>
+  </div>
+
+  <canvas id="cv" width="600" height="600"></canvas>
+
+  <div class="panel">
+    <div class="readout" id="report"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var cv=document.getElementById('cv');
+  var ctx=cv.getContext('2d');
+  var W=cv.width,H=cv.height;
+  var rMin=-2.5,rMax=2.5;
+  function sx(x){ return (x-rMin)/(rMax-rMin)*W; }
+  function sy(y){ return H-(y-rMin)/(rMax-rMin)*H; }
+
+  var S={ ctype:1, tShow:0.5, forceAngleDeg:135, arrowScale:0.9, showAnn:true,
+          tStart:0.01, tEnd:3.99 };
+
+  var CURVE='#3399ff', FORCE='#ff404d', VEL='#1ad14d';
+
+  function cx(t){
+    switch(S.ctype){
+      case 1: return t-Math.sin(t);
+      case 2: return t;
+      case 3: return t;
+      case 4: return Math.cos(t);
+    }
+  }
+  function cy(t){
+    switch(S.ctype){
+      case 1: return 1-Math.cos(t);
+      case 2: return (t-2)*(t-2)-1;
+      case 3: return Math.sin(t);
+      case 4: return Math.sin(t);
+    }
+  }
+  function dxdt(t){
+    switch(S.ctype){
+      case 1: return 1-Math.cos(t);
+      case 2: return 1;
+      case 3: return 1;
+      case 4: return -Math.sin(t);
+    }
+  }
+  function dydt(t){
+    switch(S.ctype){
+      case 1: return Math.sin(t);
+      case 2: return 2*(t-2);
+      case 3: return Math.cos(t);
+      case 4: return Math.cos(t);
+    }
+  }
+
+  function arrow(x1,y1,x2,y2,color,lw){
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.stroke();
+    var ang=Math.atan2(sy(y2)-sy(y1), sx(x2)-sx(x1));
+    var hs=11;
+    ctx.beginPath();
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2)-hs*Math.cos(ang-0.42), sy(y2)-hs*Math.sin(ang-0.42));
+    ctx.lineTo(sx(x2)-hs*Math.cos(ang+0.42), sy(y2)-hs*Math.sin(ang+0.42));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // 网格
+    ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=1;
+    for(var g=-2.5; g<=2.5001; g+=0.5){
+      ctx.beginPath(); ctx.moveTo(sx(g),sy(-2.5)); ctx.lineTo(sx(g),sy(2.5)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx(-2.5),sy(g)); ctx.lineTo(sx(2.5),sy(g)); ctx.stroke();
+    }
+    // 坐标轴
+    ctx.strokeStyle='#666'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(sx(-2.5),sy(0)); ctx.lineTo(sx(2.5),sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(-2.5)); ctx.lineTo(sx(0),sy(2.5)); ctx.stroke();
+
+    var t=S.tShow;
+    var cur=[cx(t),cy(t)];
+    var dvx=dxdt(t), dvy=dydt(t);
+    var speed=Math.sqrt(dvx*dvx+dvy*dvy);
+    var velU = speed>0.001 ? [dvx/speed, dvy/speed] : [1,0];
+    var fa=S.forceAngleDeg*Math.PI/180;
+    var forceDir=[Math.cos(fa), Math.sin(fa)];
+    var crossP = velU[0]*forceDir[1]-velU[1]*forceDir[0];
+    var isCurved = Math.abs(crossP)>0.05;
+    var bendSide = crossP>0 ? '左' : '右';
+
+    // 完整轨迹虚线
+    ctx.strokeStyle='rgba(51,153,255,0.35)'; ctx.lineWidth=2; ctx.setLineDash([6,5]);
+    ctx.beginPath();
+    var started=false;
+    for(var tt=S.tStart; tt<=S.tEnd+1e-6; tt+=0.05){
+      if(!started){ ctx.moveTo(sx(cx(tt)),sy(cy(tt))); started=true; }
+      else ctx.lineTo(sx(cx(tt)),sy(cy(tt)));
+    }
+    ctx.stroke();
+    // 已走过轨迹实线
+    ctx.strokeStyle=CURVE; ctx.lineWidth=2.5; ctx.setLineDash([]);
+    ctx.beginPath(); started=false;
+    for(var t2=S.tStart; t2<=t+1e-6; t2+=0.02){
+      if(!started){ ctx.moveTo(sx(cx(t2)),sy(cy(t2))); started=true; }
+      else ctx.lineTo(sx(cx(t2)),sy(cy(t2)));
+    }
+    ctx.stroke();
+
+    // 当前点
+    ctx.fillStyle=CURVE; ctx.beginPath(); ctx.arc(sx(cur[0]),sy(cur[1]),7,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(sx(cur[0]),sy(cur[1]),3.5,0,2*Math.PI); ctx.fill();
+
+    // 速度箭头 / 合力箭头
+    arrow(cur[0],cur[1], cur[0]+velU[0]*S.arrowScale, cur[1]+velU[1]*S.arrowScale, VEL, 3);
+    arrow(cur[0],cur[1], cur[0]+forceDir[0]*S.arrowScale, cur[1]+forceDir[1]*S.arrowScale, FORCE, 3);
+
+    if(S.showAnn){
+      // 文字标注
+      ctx.font='bold 14px sans-serif';
+      ctx.fillStyle=VEL;
+      ctx.fillText('速度方向(切线)', sx(cur[0]+velU[0]*(S.arrowScale+0.5)), sy(cur[1]+velU[1]*(S.arrowScale+0.5)));
+      ctx.fillStyle=FORCE;
+      ctx.fillText('合力方向', sx(cur[0]+forceDir[0]*(S.arrowScale+0.5)), sy(cur[1]+forceDir[1]*(S.arrowScale+0.5)));
+      ctx.fillStyle=CURVE; ctx.font='bold 13px sans-serif';
+      ctx.fillText('当前位置', sx(cur[0]+0.25), sy(cur[1]+0.25));
+      if(isCurved){
+        ctx.font='bold 16px sans-serif';
+        ctx.fillStyle=FORCE;
+        ctx.fillText('凹侧', sx(cur[0]+forceDir[0]*0.75), sy(cur[1]+forceDir[1]*0.75));
+      }
+      // 夹角弧
+      if(speed>0.001){
+        var startA=Math.atan2(velU[1],velU[0]);
+        var endA=Math.atan2(forceDir[1],forceDir[0]);
+        var diff=endA-startA;
+        while(diff>Math.PI) diff-=2*Math.PI;
+        while(diff<-Math.PI) diff+=2*Math.PI;
+        ctx.strokeStyle='rgba(80,80,80,0.6)'; ctx.lineWidth=1.5;
+        ctx.beginPath();
+        for(var k=0;k<=24;k++){
+          var a=startA+diff*k/24;
+          var px=cur[0]+0.4*Math.cos(a), py=cur[1]+0.4*Math.sin(a);
+          if(k===0) ctx.moveTo(sx(px),sy(py)); else ctx.lineTo(sx(px),sy(py));
+        }
+        ctx.stroke();
+        ctx.fillStyle='#555'; ctx.font='bold 12px sans-serif';
+        var mid=startA+diff/2;
+        var lx=cur[0]+0.6*Math.cos(mid), ly=cur[1]+0.6*Math.sin(mid);
+        ctx.fillText(Math.round(Math.abs(diff)*180/Math.PI)+'°', sx(lx), sy(ly));
+      }
+    }
+
+    // 报告
+    var html='<b class="k">运动类型：</b>'
+      +(isCurved?'<span style="color:#e6550a;font-weight:700">曲线运动</span>'
+               :'<span style="color:#888;font-weight:700">直线运动（合力与速度共线）</span>')
+      +'<br><b class="k">速度方向时刻变化：</b>'+(isCurved?'<span style="color:#2e7d32">是 ✓</span>':'<span style="color:#888">否</span>')
+      +'<br><b class="k">轨迹弯曲方向：</b>'
+      +(isCurved?'<span style="color:'+FORCE+'">合力指向'+bendSide+'侧（凹侧）</span>':'<span style="color:#888">无弯曲</span>')
+      +'<br><b class="k">匀变速可能：</b><span style="color:#e6550a">可能（若合力恒定）</span>';
+    if(!isCurved && speed>0.001) html+='<br><span style="color:#c0392b">注意：变速直线运动 ≠ 曲线运动</span>';
+    document.getElementById('report').innerHTML=html;
+  }
+
+  function bindRange(id,key,dec,suffix){
+    var el=document.getElementById(id), out=document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      S[key]=parseFloat(el.value);
+      out.textContent=S[key].toFixed(dec)+(suffix||'');
+      draw();
+    });
+  }
+  function setRange(id,val,dec,suffix){
+    var el=document.getElementById(id); el.value=val;
+    document.getElementById(id+'v').textContent=parseFloat(val).toFixed(dec)+(suffix||'');
+  }
+  function setupSet(id,cb){
+    var box=document.getElementById(id);
+    var btns=box.querySelectorAll('button');
+    btns.forEach(function(b){
+      b.addEventListener('click', function(){
+        btns.forEach(function(x){x.classList.remove('on');});
+        b.classList.add('on');
+        cb(parseInt(b.getAttribute('data-v'),10));
+        draw();
+      });
+    });
+  }
+
+  bindRange('tShow','tShow',2,'');
+  bindRange('forceAngle','forceAngleDeg',0,'°');
+  bindRange('arrowScale','arrowScale',1,'');
+  setupSet('ctype', function(v){ S.ctype=v; });
+  setupSet('showAnn', function(v){ S.showAnn=(v===1); });
+
+  var playing=false,raf=null,lastTs=null;
+  var playBtn=document.getElementById('play');
+  playBtn.addEventListener('click', function(){
+    playing=!playing;
+    playBtn.textContent=playing?'⏸ 暂停':'▶ 播放';
+    if(playing){ lastTs=null; raf=requestAnimationFrame(step); }
+    else if(raf){ cancelAnimationFrame(raf); raf=null; }
+  });
+  function step(ts){
+    if(!playing) return;
+    if(lastTs===null) lastTs=ts;
+    var dt=(ts-lastTs)/1000; lastTs=ts;
+    S.tShow+=dt*0.8;
+    if(S.tShow>=3.99){ S.tShow=3.99; playing=false; playBtn.textContent='▶ 播放'; }
+    setRange('tShow',S.tShow,2,'');
+    draw();
+    if(playing) raf=requestAnimationFrame(step);
+  }
+
+  draw();
+})();
+</script>
+</body>
+</html>
