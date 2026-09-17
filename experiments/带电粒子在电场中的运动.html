@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>带电粒子在电场中的运动</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  h2 { font-size: 17px; margin: 18px 0 6px; color: #333; border-left: 4px solid #1565c0; padding-left: 8px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 160px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>带电粒子在电场中的运动</h1>
+  <p class="desc">本页合并两部分：①点电荷的电势/电场分布与观察点场强；②带电粒子在平行板间的偏转运动（电压、初速度、极板长、入射/出射点、飞行时间、偏转距离、末速度）。</p>
+
+  <h2>一、点电荷的电势与电场</h2>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="qA">电荷量 q / C</label>
+      <input type="range" id="qA" min="-2" max="2" step="0.1" value="1">
+      <span class="val" id="qAv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="x0A">观察点 x₀ / m</label>
+      <input type="range" id="x0A" min="-1.5" max="1.5" step="0.1" value="1">
+      <span class="val" id="x0Av">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="y0A">观察点 y₀ / m</label>
+      <input type="range" id="y0A" min="-1.5" max="1.5" step="0.1" value="0.5">
+      <span class="val" id="y0Av">0.5</span>
+    </div>
+  </div>
+  <canvas id="cvA" width="460" height="460"></canvas>
+
+  <h2>二、带电粒子在极板间的偏转</h2>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="U">电压 U / V</label>
+      <input type="range" id="U" min="0.1" max="10" step="0.1" value="1">
+      <span class="val" id="Uv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="qB">电荷量 q / C</label>
+      <input type="range" id="qB" min="-2" max="2" step="0.1" value="1">
+      <span class="val" id="qBv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="v0">初速度 v₀ / (m/s)</label>
+      <input type="range" id="v0" min="0.1" max="5" step="0.1" value="1">
+      <span class="val" id="v0v">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="th">入射角 θ / (°)</label>
+      <input type="range" id="th" min="-30" max="30" step="1" value="0">
+      <span class="val" id="thv">0°</span>
+    </div>
+    <div class="ctrl">
+      <label for="L">极板长度 L / m</label>
+      <input type="range" id="L" min="1" max="4" step="0.1" value="2">
+      <span class="val" id="Lv">2.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="d">极板间距 d / m</label>
+      <input type="range" id="d" min="0.5" max="2" step="0.1" value="1">
+      <span class="val" id="dv">1.0</span>
+    </div>
+  </div>
+  <canvas id="cvB" width="700" height="300"></canvas>
+</div>
+
+<script>
+(function(){
+  /* ============ Panel A: 点电荷电势/电场 ============ */
+  var cvA = document.getElementById('cvA'), ctxA = cvA.getContext('2d');
+  var WA = cvA.width, HA = cvA.height;
+  var qA=1, x0A=1, y0A=0.5;
+  var xAmin=-2, xAmax=2, yAmin=-2, yAmax=2;
+  function sxA(x){ return (x-xAmin)/(xAmax-xAmin)*WA; }
+  function syA(y){ return HA-(y-yAmin)/(yAmax-yAmin)*HA; }
+
+  function drawA(){
+    ctxA.clearRect(0,0,WA,HA);
+    // axes
+    ctxA.strokeStyle='#333'; ctxA.lineWidth=1;
+    ctxA.beginPath(); ctxA.moveTo(sxA(xAmin),syA(0)); ctxA.lineTo(sxA(xAmax),syA(0)); ctxA.stroke();
+    ctxA.beginPath(); ctxA.moveTo(sxA(0),syA(yAmin)); ctxA.lineTo(sxA(0),syA(yAmax)); ctxA.stroke();
+    ctxA.fillStyle='#333'; ctxA.font='12px sans-serif';
+    ctxA.fillText('x / m', sxA(xAmax)-36, syA(0)-6);
+    ctxA.fillText('y / m', sxA(0)+6, syA(yAmax)+14);
+
+    // equipotential circles (12 levels)
+    ctxA.strokeStyle='rgba(255,140,0,0.9)'; ctxA.setLineDash([5,4]); ctxA.lineWidth=1.2;
+    for (var i=1;i<=12;i++){
+      var r = 0.25 + i*0.14;
+      if (r > 2) break;
+      ctxA.beginPath(); ctxA.arc(sxA(0), syA(0), Math.abs(sxA(r)-sxA(0)), 0, 2*Math.PI); ctxA.stroke();
+    }
+    ctxA.setLineDash([]);
+
+    // streamlines: radial, 16 rays
+    var dir = qA>=0?1:-1;
+    var nAng = 16;
+    ctxA.strokeStyle='#0000ff'; ctxA.lineWidth=1.2;
+    for (var k=0;k<nAng;k++){
+      var ang = k*2*Math.PI/nAng;
+      var c = Math.cos(ang), s = Math.sin(ang);
+      ctxA.beginPath();
+      ctxA.moveTo(sxA(0.15*c), syA(0.15*s));
+      ctxA.lineTo(sxA(1.95*c), syA(1.95*s));
+      ctxA.stroke();
+      // arrow
+      var mx = 0.9*c, my = 0.9*s;
+      var ex = mx + 0.12*dir*c, ey = my + 0.12*dir*s;
+      arrow(ctxA, sxA(mx),syA(my),sxA(ex),syA(ey),'#0000ff',6);
+    }
+
+    // source charge at origin
+    ctxA.fillStyle = qA>=0 ? '#ff0000' : '#0000ff';
+    ctxA.beginPath(); ctxA.arc(sxA(0),syA(0),5,0,2*Math.PI); ctxA.fill();
+
+    // observation point + E arrow
+    var r2 = x0A*x0A + y0A*y0A;
+    var eMag = qA / Math.pow(r2, 1.5);
+    var ex = eMag*x0A, ey = eMag*y0A;
+    var eNorm = Math.sqrt(ex*ex+ey*ey);
+    var un = 1/Math.sqrt(r2);
+    var pot = qA/Math.sqrt(r2);
+    // arrow length = |Ehat|/2 (Normalize[eField]/2)
+    var alen = 0.5;
+    var fx = x0A + alen*un, fy = y0A + alen*un*(ey/ex||1);
+    // direction of eField is radial outward for q>0 (eMag sign covers it)
+    var ux = eNorm>0 ? ex/eNorm : 0, uy = eNorm>0 ? ey/eNorm : 0;
+    fx = x0A + 0.5*ux; fy = y0A + 0.5*uy;
+
+    ctxA.fillStyle='#ff0000';
+    ctxA.beginPath(); ctxA.arc(sxA(x0A),syA(y0A),5,0,2*Math.PI); ctxA.fill();
+    arrow(ctxA, sxA(x0A),syA(y0A), sxA(fx),syA(fy), '#ff0000', 7);
+
+    ctxA.fillStyle='#000'; ctxA.font='12px sans-serif';
+    ctxA.fillText('E = '+eNorm.toFixed(2)+' N/C, 电势 = '+pot.toFixed(2)+' V',
+                  sxA(x0A+0.3), syA(y0A+0.3));
+  }
+
+  function arrow(c,x1,y1,x2,y2,color,headLen){
+    c.strokeStyle=color; c.fillStyle=color; c.lineWidth=2;
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+    var ang=Math.atan2(y2-y1,x2-x1);
+    c.beginPath();
+    c.moveTo(x2,y2);
+    c.lineTo(x2-headLen*Math.cos(ang-0.4), y2-headLen*Math.sin(ang-0.4));
+    c.lineTo(x2-headLen*Math.cos(ang+0.4), y2-headLen*Math.sin(ang+0.4));
+    c.closePath(); c.fill();
+  }
+
+  function bindA(id, key, fmt){
+    var el=document.getElementById(id), out=document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      eval(key + ' = ' + parseFloat(el.value));
+      out.textContent=fmt(parseFloat(el.value));
+      drawA();
+    });
+  }
+  bindA('qA','qA',function(v){return v.toFixed(1);});
+  bindA('x0A','x0A',function(v){return v.toFixed(1);});
+  bindA('y0A','y0A',function(v){return v.toFixed(1);});
+
+  /* ============ Panel B: 极板间偏转 ============ */
+  var cvB = document.getElementById('cvB'), ctxB = cvB.getContext('2d');
+  var WB = cvB.width, HB = cvB.height;
+  var U=1, qB=1, v0=1, th=0, L=2, d=1;
+
+  function drawB(){
+    var deg = Math.PI/180;
+    var vx0 = v0*Math.cos(th*deg), vy0 = v0*Math.sin(th*deg);
+    var m=1;
+    var ay = qB*U/(m*d);
+    var tflight = vx0 > 0 ? L/vx0 : 0;
+    var yfinal = vy0*tflight + 0.5*ay*tflight*tflight;
+    var vfinal = Math.sqrt(vx0*vx0 + (vy0 + ay*tflight)*(vy0 + ay*tflight));
+
+    var xBmin=0, xBmax=L, yBmin=-d/2-1.1, yBmax=d/2+0.3;
+    ctxB.clearRect(0,0,WB,HB);
+    function sxB(x){ return (x-xBmin)/(xBmax-xBmin)*WB; }
+    function syB(y){ return HB-(y-yBmin)/(yBmax-yBmin)*HB; }
+
+    // light gray plate region
+    ctxB.fillStyle='#e8e8e8';
+    ctxB.fillRect(sxB(0), syB(d/2), sxB(L)-sxB(0), syB(-d/2)-syB(d/2));
+    // plate edges
+    ctxB.strokeStyle='#0000ff'; ctxB.lineWidth=2.5;
+    ctxB.beginPath(); ctxB.moveTo(sxB(0),syB(-d/2)); ctxB.lineTo(sxB(0),syB(d/2)); ctxB.stroke();
+    ctxB.beginPath(); ctxB.moveTo(sxB(L),syB(-d/2)); ctxB.lineTo(sxB(L),syB(d/2)); ctxB.stroke();
+    // + -
+    ctxB.font='16px sans-serif'; ctxB.textAlign='center';
+    ctxB.fillStyle='#000';
+    ctxB.fillText('+', sxB(L/2), syB(d/2+0.1));
+    ctxB.fillText('-', sxB(L/2), syB(-d/2-0.1));
+    ctxB.textAlign='left';
+
+    // trajectory
+    ctxB.strokeStyle='#ff0000'; ctxB.lineWidth=2.5; ctxB.beginPath();
+    var N=150;
+    for (var i=0;i<=N;i++){
+      var tt = tflight*i/N;
+      var xx = vx0*tt, yy = vy0*tt + 0.5*ay*tt*tt;
+      if (i===0) ctxB.moveTo(sxB(xx),syB(yy)); else ctxB.lineTo(sxB(xx),syB(yy));
+    }
+    ctxB.stroke();
+
+    // points
+    ctxB.fillStyle='#ff0000';
+    ctxB.beginPath(); ctxB.arc(sxB(0),syB(0),3.5,0,2*Math.PI); ctxB.fill();
+    ctxB.beginPath(); ctxB.arc(sxB(L),syB(yfinal),3.5,0,2*Math.PI); ctxB.fill();
+
+    // info
+    ctxB.fillStyle='#000'; ctxB.font='12px sans-serif';
+    ctxB.fillText('飞行时间 = '+tflight.toFixed(2)+' s', sxB(L/2), syB(-d/2-0.4));
+    ctxB.fillText('偏转距离 = '+yfinal.toFixed(2)+' m', sxB(L/2), syB(-d/2-0.6));
+    ctxB.fillText('末速度 = '+vfinal.toFixed(2)+' m/s', sxB(L/2), syB(-d/2-0.8));
+  }
+
+  function bindB(id, key, fmt, suffix){
+    var el=document.getElementById(id), out=document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      eval(key + ' = ' + parseFloat(el.value));
+      out.textContent=fmt(parseFloat(el.value))+(suffix||'');
+      drawB();
+    });
+  }
+  bindB('U','U',function(v){return v.toFixed(1);});
+  bindB('qB','qB',function(v){return v.toFixed(1);});
+  bindB('v0','v0',function(v){return v.toFixed(1);});
+  bindB('th','th',function(v){return v.toFixed(0);},'°');
+  bindB('L','L',function(v){return v.toFixed(1);});
+  bindB('d','d',function(v){return v.toFixed(1);});
+
+  drawA(); drawB();
+})();
+</script>
+</body>
+</html>
