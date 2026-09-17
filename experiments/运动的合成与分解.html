@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>运动的合成与分解</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .panel h3 { font-size: 15px; margin: 6px 0 8px; }
+  .panel h3.o { color: #e67300; }
+  .panel h3.g { color: #26b826; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 160px; }
+  .ctrl .val { width: 60px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .radio { display: inline-flex; gap: 8px; }
+  .radio button { padding: 4px 12px; font-size: 13px; border: 1px solid #ccc;
+                  border-radius: 6px; background: #fff; cursor: pointer; }
+  .radio button.on { background: #1565c0; color: #fff; border-color: #1565c0; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .preset { padding: 6px 12px; font-size: 13px; border: 1px solid #d0d7e2;
+            border-radius: 6px; background: #eef3fa; cursor: pointer; }
+  .preset:hover { background: #dbe7f7; }
+  .playbtn { padding: 4px 14px; font-size: 13px; border: 1px solid #1565c0;
+             border-radius: 6px; background: #1565c0; color: #fff; cursor: pointer; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  .readout { font-size: 14px; line-height: 1.9; }
+  .readout b.k { color: #444; }
+  .tagline { font-size: 15px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>运动的合成与分解</h1>
+  <p class="desc">两个分运动在相同时间 t 内发生，按平行四边形定则合成。调节分运动初速度、加速度与时间，观察合运动轨迹与性质判断。</p>
+
+  <div class="panel">
+    <h3 class="o">分运动 1（橙色）</h3>
+    <div class="ctrl">
+      <label>运动类型</label>
+      <div class="radio" id="m1type">
+        <button data-v="1" class="on">匀速直线</button>
+        <button data-v="2">匀变速直线</button>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label for="v1x">初速度 v₁x (m/s)</label>
+      <input type="range" id="v1x" min="-2" max="2" step="0.1" value="1.2">
+      <span class="val" id="v1xv">1.2</span>
+    </div>
+    <div class="ctrl">
+      <label for="v1y">初速度 v₁y (m/s)</label>
+      <input type="range" id="v1y" min="-2" max="2" step="0.1" value="0.6">
+      <span class="val" id="v1yv">0.6</span>
+    </div>
+    <div class="ctrl a1">
+      <label for="a1x">加速度 a₁x (m/s²)</label>
+      <input type="range" id="a1x" min="-1.5" max="1.5" step="0.1" value="0">
+      <span class="val" id="a1xv">0.0</span>
+    </div>
+    <div class="ctrl a1">
+      <label for="a1y">加速度 a₁y (m/s²)</label>
+      <input type="range" id="a1y" min="-1.5" max="1.5" step="0.1" value="0.3">
+      <span class="val" id="a1yv">0.3</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3 class="g">分运动 2（绿色）</h3>
+    <div class="ctrl">
+      <label>运动类型</label>
+      <div class="radio" id="m2type">
+        <button data-v="1">匀速直线</button>
+        <button data-v="2" class="on">匀变速直线</button>
+      </div>
+    </div>
+    <div class="ctrl">
+      <label for="v2x">初速度 v₂x (m/s)</label>
+      <input type="range" id="v2x" min="-2" max="2" step="0.1" value="0.3">
+      <span class="val" id="v2xv">0.3</span>
+    </div>
+    <div class="ctrl">
+      <label for="v2y">初速度 v₂y (m/s)</label>
+      <input type="range" id="v2y" min="-2" max="2" step="0.1" value="1.0">
+      <span class="val" id="v2yv">1.0</span>
+    </div>
+    <div class="ctrl a2">
+      <label for="a2x">加速度 a₂x (m/s²)</label>
+      <input type="range" id="a2x" min="-1.5" max="1.5" step="0.1" value="0">
+      <span class="val" id="a2xv">0.0</span>
+    </div>
+    <div class="ctrl a2">
+      <label for="a2y">加速度 a₂y (m/s²)</label>
+      <input type="range" id="a2y" min="-1.5" max="1.5" step="0.1" value="-0.4">
+      <span class="val" id="a2yv">-0.4</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>时间与显示</h3>
+    <div class="ctrl">
+      <label for="t">运动时间 t (s)</label>
+      <input type="range" id="t" min="0" max="3" step="0.05" value="1.5">
+      <span class="val" id="tv">1.5</span>
+      <button class="playbtn" id="play">▶ 播放</button>
+    </div>
+    <div class="ctrl">
+      <label>显示标注</label>
+      <div class="radio" id="showLbl">
+        <button data-v="1" class="on">开</button>
+        <button data-v="0">关</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>快速预设场景</h3>
+    <div class="btnrow">
+      <button class="preset" data-p="paoping">平抛 (水平匀速+竖直自由落体)</button>
+      <button class="preset" data-p="xiepao">斜抛 (匀速+重力)</button>
+      <button class="preset" data-p="liangyun">两匀速 (匀速直线)</button>
+      <button class="preset" data-p="xian">两匀变速直线 (共线)</button>
+      <button class="preset" data-p="quxian">两匀变速曲线 (不共线)</button>
+      <button class="preset" data-p="reset">重置默认</button>
+    </div>
+  </div>
+
+  <canvas id="cv" width="640" height="560"></canvas>
+
+  <div class="panel">
+    <div class="readout" id="report"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+
+  // PlotRange {{-3,5},{-2,5}}
+  var xMin=-3, xMax=5, yMin=-2, yMax=5;
+  function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+  function sy(y){ return H - (y-yMin)/(yMax-yMin)*H; }
+
+  // 状态
+  var S = {
+    m1:1, v1x:1.2, v1y:0.6, a1x:0, a1y:0.3,
+    m2:2, v2x:0.3, v2y:1.0, a2x:0, a2y:-0.4,
+    t:1.5, showLabels:true
+  };
+
+  var ORANGE='#ff8c1a', GREEN='#26b826', RED='#cc1a1a', BLUE='#3333b3';
+
+  function cross(a,b){ return a[0]*b[1]-a[1]*b[0]; }
+
+  function compute(){
+    var v1=[S.v1x,S.v1y];
+    var a1 = S.m1===1?[0,0]:[S.a1x,S.a1y];
+    var v2=[S.v2x,S.v2y];
+    var a2 = S.m2===1?[0,0]:[S.a2x,S.a2y];
+    var vTot=[v1[0]+v2[0],v1[1]+v2[1]];
+    var aTot=[a1[0]+a2[0],a1[1]+a2[1]];
+    var t=S.t;
+    var s1=[v1[0]*t+0.5*a1[0]*t*t, v1[1]*t+0.5*a1[1]*t*t];
+    var s2=[v2[0]*t+0.5*a2[0]*t*t, v2[1]*t+0.5*a2[1]*t*t];
+    var sTot=[s1[0]+s2[0], s1[1]+s2[1]];
+
+    var type;
+    if(S.m1===1 && S.m2===1){ type="匀速直线运动"; }
+    else if((S.m1===1&&S.m2===2)||(S.m1===2&&S.m2===1)){
+      var vC = S.m1===1?v1:v2;
+      var aV = S.m1===1?a2:a1;
+      type = (cross(vC,aV)===0) ? "匀变速直线运动" : "匀变速曲线运动";
+    } else {
+      type = (cross(vTot,aTot)===0) ? "匀变速直线运动" : "匀变速曲线运动";
+    }
+    return {v1:v1,v2:v2,a1:a1,a2:a2,vTot:vTot,aTot:aTot,s1:s1,s2:s2,sTot:sTot,type:type};
+  }
+
+  function arrow(x1,y1,x2,y2,color,lw){
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.stroke();
+    var ang=Math.atan2(sy(y2)-sy(y1), sx(x2)-sx(x1));
+    var hs=11;
+    ctx.beginPath();
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2)-hs*Math.cos(ang-0.42), sy(y2)-hs*Math.sin(ang-0.42));
+    ctx.lineTo(sx(x2)-hs*Math.cos(ang+0.42), sy(y2)-hs*Math.sin(ang+0.42));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // 网格
+    ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=1;
+    for(var gx=-3; gx<=5; gx++){ ctx.beginPath(); ctx.moveTo(sx(gx),sy(-2)); ctx.lineTo(sx(gx),sy(5)); ctx.stroke(); }
+    for(var gy=-2; gy<=5; gy++){ ctx.beginPath(); ctx.moveTo(sx(-3),sy(gy)); ctx.lineTo(sx(5),sy(gy)); ctx.stroke(); }
+    // 坐标轴
+    ctx.strokeStyle='#666'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(sx(-3),sy(0)); ctx.lineTo(sx(5),sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(-2)); ctx.lineTo(sx(0),sy(5)); ctx.stroke();
+
+    var R=compute();
+
+    // 合运动轨迹（虚线）
+    ctx.strokeStyle='rgba(51,51,179,0.35)'; ctx.lineWidth=2; ctx.setLineDash([6,5]);
+    ctx.beginPath();
+    var started=false;
+    for(var tau=0; tau<=3.001; tau+=0.03){
+      var px=(S.v1x+S.v2x)*tau + 0.5*R.a1[0]*tau*tau + 0.5*R.a2[0]*tau*tau;
+      var py=(S.v1y+S.v2y)*tau + 0.5*R.a1[1]*tau*tau + 0.5*R.a2[1]*tau*tau;
+      if(!started){ ctx.moveTo(sx(px),sy(py)); started=true; }
+      else ctx.lineTo(sx(px),sy(py));
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+
+    // 分运动矢量
+    arrow(0,0,R.s1[0],R.s1[1],ORANGE,3);
+    arrow(0,0,R.s2[0],R.s2[1],GREEN,3);
+    arrow(0,0,R.sTot[0],R.sTot[1],RED,3.5);
+
+    // 平行四边形辅助线
+    ctx.strokeStyle='rgba(120,120,120,0.7)'; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(sx(R.s1[0]),sy(R.s1[1])); ctx.lineTo(sx(R.sTot[0]),sy(R.sTot[1])); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(R.s2[0]),sy(R.s2[1])); ctx.lineTo(sx(R.sTot[0]),sy(R.sTot[1])); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 顶点
+    ctx.fillStyle=RED; ctx.beginPath(); ctx.arc(sx(R.sTot[0]),sy(R.sTot[1]),5,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle=ORANGE; ctx.beginPath(); ctx.arc(sx(R.s1[0]),sy(R.s1[1]),4,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle=GREEN; ctx.beginPath(); ctx.arc(sx(R.s2[0]),sy(R.s2[1]),4,0,2*Math.PI); ctx.fill();
+
+    // 标注
+    ctx.font='bold 13px sans-serif';
+    if(S.showLabels){
+      ctx.fillStyle=ORANGE; ctx.fillText('分运动1', sx(R.s1[0]+0.2), sy(R.s1[1]+0.25));
+      ctx.fillStyle=GREEN; ctx.fillText('分运动2', sx(R.s2[0]+0.2), sy(R.s2[1]+0.25));
+      ctx.fillStyle=RED; ctx.font='bold 14px sans-serif';
+      ctx.fillText('合运动 (实际运动)', sx(R.sTot[0]+0.25), sy(R.sTot[1]+0.3));
+      ctx.fillStyle='#555'; ctx.font='12px sans-serif';
+      var midx=(R.s1[0]+R.s2[0])/2, midy=(R.s1[1]+R.s2[1])/2;
+      ctx.fillText('平行四边形定则', sx(midx+0.3), sy(midy-0.2));
+    }
+
+    // 报告
+    var isCurve = R.type.indexOf('曲线')>=0;
+    var color = isCurve ? '#e6550a' : '#3388cc';
+    var html = '<span class="k">⏱ 时间 t = </span><b>'+S.t.toFixed(1)+' s</b>（等时性）<br>'
+      + '<span class="k">🏃 合运动性质：</span><span class="tagline" style="color:'+color+'">'+R.type+'</span><br>'
+      + '<span class="k">分运动1：</span>'+(S.m1===1?'匀速':'匀变速')
+      + ' v₁=('+S.v1x.toFixed(1)+','+S.v1y.toFixed(1)+')'
+      + (S.m1===2?'  a₁=('+S.a1x.toFixed(1)+','+S.a1y.toFixed(1)+')':'')+'<br>'
+      + '<span class="k">分运动2：</span>'+(S.m2===1?'匀速':'匀变速')
+      + ' v₂=('+S.v2x.toFixed(1)+','+S.v2y.toFixed(1)+')'
+      + (S.m2===2?'  a₂=('+S.a2x.toFixed(1)+','+S.a2y.toFixed(1)+')':'')+'<br>'
+      + '<span class="k">合速度：</span>v合=('+R.vTot[0].toFixed(1)+','+R.vTot[1].toFixed(1)+')　'
+      + '<span class="k">合加速度：</span>a合=('+R.aTot[0].toFixed(1)+','+R.aTot[1].toFixed(1)+')';
+    if(isCurve) html += '<br><span style="color:#e6550a">💡 合力(加速度)与速度不共线 → 曲线运动</span>';
+    document.getElementById('report').innerHTML = html;
+  }
+
+  // ---- 控件绑定 ----
+  function bindRange(id, key, dec){
+    var el=document.getElementById(id), out=document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      S[key]=parseFloat(el.value);
+      out.textContent=S[key].toFixed(dec);
+      draw();
+    });
+  }
+  function setRange(id, val){
+    var el=document.getElementById(id); el.value=val;
+    document.getElementById(id+'v').textContent=parseFloat(val).toFixed(id==='t'?1:(id.indexOf('a')===0?1:1));
+  }
+
+  function setupRadio(id, cb){
+    var box=document.getElementById(id);
+    var btns=box.querySelectorAll('button');
+    btns.forEach(function(b){
+      b.addEventListener('click', function(){
+        btns.forEach(function(x){x.classList.remove('on');});
+        b.classList.add('on');
+        cb(parseInt(b.getAttribute('data-v'),10));
+        draw();
+      });
+    });
+  }
+  function setRadio(id, v){
+    var box=document.getElementById(id);
+    box.querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('on', parseInt(b.getAttribute('data-v'),10)===v);
+    });
+  }
+
+  function refreshEnabled(){
+    document.querySelectorAll('.a1 input').forEach(function(e){e.disabled=(S.m1!==2);});
+    document.querySelectorAll('.a2 input').forEach(function(e){e.disabled=(S.m2!==2);});
+  }
+
+  bindRange('v1x','v1x',1); bindRange('v1y','v1y',1);
+  bindRange('a1x','a1x',1); bindRange('a1y','a1y',1);
+  bindRange('v2x','v2x',1); bindRange('v2y','v2y',1);
+  bindRange('a2x','a2x',1); bindRange('a2y','a2y',1);
+  bindRange('t','t',1);
+
+  setupRadio('m1type', function(v){ S.m1=v; refreshEnabled(); });
+  setupRadio('m2type', function(v){ S.m2=v; refreshEnabled(); });
+  setupRadio('showLbl', function(v){ S.showLabels=(v===1); });
+
+  // ---- 预设 ----
+  var presets={
+    paoping:{v1x:1.5,v1y:0,a1x:0,a1y:0,m1:1,v2x:0,v2y:0,a2x:0,a2y:-0.8,m2:2,t:1.0},
+    xiepao:{v1x:1.0,v1y:1.5,a1x:0,a1y:0,m1:1,v2x:0,v2y:0,a2x:0,a2y:-0.7,m2:2,t:1.2},
+    liangyun:{v1x:1.0,v1y:0.5,a1x:0,a1y:0,m1:1,v2x:0.8,v2y:1.0,a2x:0,a2y:0,m2:2,t:2.0},
+    xian:{v1x:1.0,v1y:0,a1x:0.3,a1y:0,m1:2,v2x:0.5,v2y:0,a2x:0.5,a2y:0,m2:2,t:2.0},
+    quxian:{v1x:1.0,v1y:0.3,a1x:0,a1y:0.4,m1:2,v2x:0.5,v2y:0.8,a2x:0.3,a2y:0,m2:2,t:1.5},
+    reset:{v1x:1.2,v1y:0.6,a1x:0,a1y:0.3,m1:1,v2x:0.3,v2y:1.0,a2x:0,a2y:-0.4,m2:2,t:1.5}
+  };
+  document.querySelectorAll('.preset').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var p=presets[btn.getAttribute('data-p')];
+      for(var k in p){ S[k]=p[k]; }
+      ['v1x','v1y','a1x','a1y','v2x','v2y','a2x','a2y','t'].forEach(function(id){
+        setRange(id, S[id]);
+      });
+      setRadio('m1type', S.m1); setRadio('m2type', S.m2);
+      refreshEnabled(); draw();
+    });
+  });
+
+  // ---- 播放 ----
+  var playing=false, raf=null, lastTs=null;
+  var playBtn=document.getElementById('play');
+  playBtn.addEventListener('click', function(){
+    playing=!playing;
+    playBtn.textContent = playing?'⏸ 暂停':'▶ 播放';
+    if(playing){ lastTs=null; raf=requestAnimationFrame(step); }
+    else if(raf){ cancelAnimationFrame(raf); raf=null; }
+  });
+  function step(ts){
+    if(!playing) return;
+    if(lastTs===null) lastTs=ts;
+    var dt=(ts-lastTs)/1000; lastTs=ts;
+    S.t += dt*1.0; // 1s 真实走 1s 物理时间
+    if(S.t>=3){ S.t=3; playing=false; playBtn.textContent='▶ 播放'; }
+    setRange('t', S.t);
+    draw();
+    if(playing) raf=requestAnimationFrame(step);
+  }
+
+  refreshEnabled();
+  draw();
+})();
+</script>
+</body>
+</html>
