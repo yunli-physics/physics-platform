@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>匀强电场带电粒子轨迹</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .chk { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 14px; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>匀强电场中带电粒子的运动轨迹</h1>
+  <p class="desc">带电粒子以初速度 v₀、入射角 θ 射入平行板匀强电场，做类平抛运动；调节参数观察是否打到极板及接收屏落点。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="U">电压 U / V</label>
+      <input type="range" id="U" min="0.1" max="15" step="0.1" value="1">
+      <span class="val" id="Uv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="q">电荷量 q / C</label>
+      <input type="range" id="q" min="-3" max="3" step="0.1" value="1">
+      <span class="val" id="qv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="v0">初速度 v₀ / (m/s)</label>
+      <input type="range" id="v0" min="0.1" max="8" step="0.1" value="2">
+      <span class="val" id="v0v">2.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="th">入射角 θ / (°)</label>
+      <input type="range" id="th" min="-90" max="90" step="0.5" value="0">
+      <span class="val" id="thv">0.0°</span>
+    </div>
+    <div class="ctrl">
+      <label for="L">极板长度 L / m</label>
+      <input type="range" id="L" min="0.5" max="5" step="0.1" value="2">
+      <span class="val" id="Lv">2.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="d">极板间距 d / m</label>
+      <input type="range" id="d" min="0.3" max="3" step="0.1" value="1">
+      <span class="val" id="dv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="sd">接收屏距离 / m</label>
+      <input type="range" id="sd" min="0" max="4" step="0.1" value="1">
+      <span class="val" id="sdv">1.0</span>
+    </div>
+    <div class="chk"><input type="checkbox" id="showAxes" checked><label for="showAxes">显示坐标轴</label></div>
+  </div>
+  <canvas id="cv" width="940" height="440"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var U=1, q=1, v0=2, th=0, L=2, d=1, sd=1, showAxes=true;
+
+  function compute(){
+    var deg = Math.PI/180;
+    var vx0 = v0*Math.cos(th*deg), vy0 = v0*Math.sin(th*deg);
+    var m=1;
+    var ay = q*U/(m*d);
+    var t1 = vx0 > 0.001 ? L/vx0 : 0.001;
+    var y1 = vy0*t1 + 0.5*ay*t1*t1;
+    var vy1 = vy0 + ay*t1;
+    var hitPlate = (y1 > d/2) || (y1 < -d/2);
+    var hitX = 0;
+    if (hitPlate) {
+      if (y1 > d/2 && ay !== 0) {
+        t1 = (-vy0 + Math.sqrt(vy0*vy0 + 2*ay*(d/2)))/ay;
+        y1 = d/2; vy1 = vy0 + ay*t1; hitX = vx0*t1;
+      } else if (y1 < -d/2 && ay !== 0) {
+        t1 = (-vy0 - Math.sqrt(vy0*vy0 - 2*ay*(d/2)))/ay;
+        y1 = -d/2; vy1 = vy0 + ay*t1; hitX = vx0*t1;
+      } else if (ay === 0) {
+        t1 = vy0 > 0 ? (d/2)/vy0 : (vy0 < 0 ? (-d/2)/vy0 : 0);
+        y1 = vy0*t1; vy1 = vy0; hitX = vx0*t1;
+      }
+    }
+    var vfinal = Math.sqrt(vx0*vx0 + vy1*vy1);
+    var t2=0, y2=0;
+    if (!hitPlate) {
+      t2 = sd/(vx0 + 0.001);
+      y2 = y1 + vy1*t2;
+    }
+    return {vx0:vx0,vy0:vy0,ay:ay,t1:t1,y1:y1,vy1:vy1,hitPlate:hitPlate,hitX:hitX,vfinal:vfinal,t2:t2,y2:y2};
+  }
+
+  function draw(){
+    var r = compute();
+    var xMin=-0.3, xMax=L+sd+0.5, yMin=-d/2-1.0, yMax=d/2+0.8;
+    ctx.clearRect(0,0,W,H);
+    function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+    function sy(y){ return H-(y-yMin)/(yMax-yMin)*H; }
+
+    // light gray plate region
+    ctx.fillStyle='#e8e8e8';
+    ctx.fillRect(sx(0), sy(d/2), sx(L)-sx(0), sy(-d/2)-sy(d/2));
+
+    // blue plate edges
+    ctx.strokeStyle='#0000ff'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(-d/2)); ctx.lineTo(sx(0),sy(d/2)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(L),sy(-d/2)); ctx.lineTo(sx(L),sy(d/2)); ctx.stroke();
+
+    // + - labels
+    ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
+    ctx.fillStyle='#ff0000'; ctx.fillText('+', sx(L/2), sy(d/2+0.2));
+    ctx.fillStyle='#0000ff'; ctx.fillText('-', sx(L/2), sy(-d/2-0.2));
+    ctx.textAlign='left';
+
+    // screen
+    if (sd > 0) {
+      ctx.strokeStyle='#800080'; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(sx(L+sd),sy(-d/2-0.6)); ctx.lineTo(sx(L+sd),sy(d/2+0.6)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#800080'; ctx.font='12px sans-serif';
+      ctx.fillText('接收屏', sx(L+sd+0.12), sy(0));
+    }
+
+    // origin O
+    ctx.fillStyle='#ff0000';
+    ctx.beginPath(); ctx.arc(sx(0),sy(0),4,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle='#000'; ctx.font='bold 12px sans-serif';
+    ctx.fillText('O', sx(-0.08), sy(-0.1));
+
+    // trajectory inside plates
+    ctx.strokeStyle='#e53935'; ctx.lineWidth=2.5; ctx.beginPath();
+    var N=200;
+    for (var i=0;i<=N;i++){
+      var tt = r.t1*i/N;
+      var xx = r.vx0*tt, yy = r.vy0*tt + 0.5*r.ay*tt*tt;
+      if (i===0) ctx.moveTo(sx(xx),sy(yy)); else ctx.lineTo(sx(xx),sy(yy));
+    }
+    ctx.stroke();
+
+    // exit point
+    ctx.fillStyle='#ff0000';
+    if (!r.hitPlate) {
+      ctx.beginPath(); ctx.arc(sx(L),sy(r.y1),3.5,0,2*Math.PI); ctx.fill();
+      // dashed trajectory to screen
+      if (sd>0) {
+        ctx.strokeStyle='rgba(229,57,53,0.7)'; ctx.setLineDash([6,5]); ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.moveTo(sx(L),sy(r.y1));
+        ctx.lineTo(sx(L+sd),sy(r.y2));
+        ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(sx(L+sd),sy(r.y2),4,0,2*Math.PI); ctx.fill();
+      }
+    } else {
+      ctx.beginPath(); ctx.arc(sx(r.hitX),sy(r.y1),5,0,2*Math.PI); ctx.fill();
+      ctx.strokeStyle='#ff0000'; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(sx(r.hitX),sy(r.y1)); ctx.lineTo(sx(r.hitX),sy(-d/2-0.3)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle='#fff';
+      ctx.fillRect(sx(r.hitX)-28, sy(r.y1 + (r.y1>0?0.25:-0.25))-10, 60, 16);
+      ctx.fillStyle='#ff0000'; ctx.font='bold 13px sans-serif';
+      ctx.fillText('打到极板!', sx(r.hitX)-26, sy(r.y1 + (r.y1>0?0.25:-0.25))+4);
+      ctx.fillStyle='#000'; ctx.font='11px sans-serif';
+      ctx.fillText('x = '+r.hitX.toFixed(2)+' m', sx(r.hitX)-20, sy(-d/2-0.35));
+    }
+
+    // green dashed deflection line from origin
+    if (Math.abs(r.y1) > 0.05) {
+      ctx.strokeStyle='#00a000'; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(sx(0),sy(0)); ctx.lineTo(sx(0),sy(r.y1)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // axes
+    if (showAxes) {
+      ctx.strokeStyle='#000'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.moveTo(sx(-0.3),sy(0)); ctx.lineTo(sx(L+sd+0.3),sy(0)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx(0),sy(-d/2-0.5)); ctx.lineTo(sx(0),sy(d/2+0.5)); ctx.stroke();
+      ctx.fillStyle='#000'; ctx.font='bold 12px sans-serif';
+      ctx.fillText('x', sx(L+sd+0.35), sy(-0.05));
+      ctx.fillText('y', sx(-0.05), sy(d/2+0.55));
+      ctx.fillText('0', sx(-0.08), sy(-0.08));
+    }
+
+    // info text
+    ctx.fillStyle='#000'; ctx.font='12px sans-serif';
+    ctx.fillText('飞行时间 = '+r.t1.toFixed(3)+' s', sx(L/2+0.1), sy(-d/2-0.55));
+    ctx.fillText('偏转距离 = '+r.y1.toFixed(3)+' m', sx(L/2+0.1), sy(-d/2-0.70));
+    ctx.fillText('末速度 = '+r.vfinal.toFixed(3)+' m/s', sx(L/2+0.1), sy(-d/2-0.85));
+    if (!r.hitPlate) {
+      ctx.fillText('落点偏转 = '+r.y2.toFixed(3)+' m', sx(L/2+0.1), sy(-d/2-1.00));
+    } else {
+      ctx.fillStyle='#ff0000'; ctx.font='bold 14px sans-serif';
+      ctx.fillText('◆ 粒子打到极板！', sx(L/2)-40, sy(d/2+0.55));
+    }
+  }
+
+  function bind(id, key, fmtFn, suffix){
+    var el=document.getElementById(id), out=document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      eval(key + ' = ' + parseFloat(el.value));
+      out.textContent=fmtFn(parseFloat(el.value))+(suffix||'');
+      draw();
+    });
+  }
+  bind('U','U',function(v){return v.toFixed(1);});
+  bind('q','q',function(v){return v.toFixed(1);});
+  bind('v0','v0',function(v){return v.toFixed(1);});
+  bind('th','th',function(v){return v.toFixed(1);},'°');
+  bind('L','L',function(v){return v.toFixed(1);});
+  bind('d','d',function(v){return v.toFixed(1);});
+  bind('sd','sd',function(v){return v.toFixed(1);});
+  document.getElementById('showAxes').addEventListener('change',function(){showAxes=this.checked;draw();});
+  draw();
+})();
+</script>
+</body>
+</html>
