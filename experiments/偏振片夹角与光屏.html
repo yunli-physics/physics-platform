@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>偏振片夹角与光屏</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 180px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  .note { margin-top: 10px; font-size: 13px; color:#444; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>偏振片夹角与光屏亮度</h1>
+  <p class="desc">自然光经起偏器后强度减半；转动检偏器角度 φ，出射强度按马吕斯定律 I=I₀cos²φ 变化，光屏灰度随之改变。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="phi">检偏器夹角 φ (°)</label>
+      <input type="range" id="phi" min="0" max="180" step="1" value="0">
+      <span class="val" id="phiv">0°</span>
+    </div>
+  </div>
+  <canvas id="cv" width="760" height="260"></canvas>
+  <div class="note" id="note"></div>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var phiDeg = 0;
+
+  function drawPlate(cx, cy, r, angleDeg, label){
+    var a = angleDeg*Math.PI/180;
+    // 外框
+    ctx.strokeStyle = '#555'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.stroke();
+    ctx.fillStyle = 'rgba(120,160,200,0.18)';
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,2*Math.PI); ctx.fill();
+    // 透光轴方向（直径线）
+    ctx.strokeStyle = '#1565c0'; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(cx - r*Math.cos(a), cy - r*Math.sin(a));
+    ctx.lineTo(cx + r*Math.cos(a), cy + r*Math.sin(a));
+    ctx.stroke();
+    // 标签
+    ctx.fillStyle = '#222'; ctx.font = 'bold 13px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, cx, cy - r - 8);
+  }
+
+  function drawArrow(x1,y1,x2,y2,color){
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var ang = Math.atan2(y2-y1, x2-x1);
+    var s=12;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-s*Math.cos(ang-Math.PI/7), y2-s*Math.sin(ang-Math.PI/7));
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-s*Math.cos(ang+Math.PI/7), y2-s*Math.sin(ang+Math.PI/7));
+    ctx.stroke();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+
+    var cx1=130, cx2=380, cy=H/2, r=55;
+    var screenX1=600, screenX2=720, screenY=cy;
+
+    var phir = phiDeg*Math.PI/180;
+    var cos2 = Math.pow(Math.cos(phir),2);
+    var gray = Math.round(cos2*255);
+
+    // 光源（左）
+    ctx.fillStyle = '#e53935';
+    ctx.beginPath(); ctx.arc(55, cy, 28, 0, 2*Math.PI); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 13px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('自然光', 55, cy);
+
+    // 光路箭头
+    drawArrow(90, cy, cx1-r-5, cy, '#e53935');
+    drawArrow(cx1+r+5, cy, cx2-r-5, cy, '#e53935');
+    drawArrow(cx2+r+5, cy, screenX1-5, cy, '#e53935');
+
+    // 起偏器（固定竖直透光轴）
+    drawPlate(cx1, cy, r, 90, '起偏器 P（透光轴竖直）');
+    // 检偏器（随 phi 旋转；竖直为 90°）
+    drawPlate(cx2, cy, r, 90+phiDeg, '检偏器 A（随 φ 旋转）');
+
+    // 光屏
+    ctx.fillStyle = 'rgb('+gray+','+gray+','+gray+')';
+    ctx.fillRect(screenX1, screenY-70, screenX2-screenX1, 140);
+    ctx.strokeStyle='#000'; ctx.lineWidth=2;
+    ctx.strokeRect(screenX1, screenY-70, screenX2-screenX1, 140);
+    ctx.fillStyle = (gray>128)?'#000':'#fff';
+    ctx.font='bold 13px "Microsoft YaHei", sans-serif'; ctx.textAlign='center';
+    ctx.fillText('光屏', (screenX1+screenX2)/2, screenY-78);
+
+    // 数值
+    ctx.fillStyle='#222'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.font='14px "Microsoft YaHei", sans-serif';
+    ctx.fillText('夹角 φ = '+phiDeg.toFixed(0)+'°', 30, H-70);
+    ctx.fillText('cos²φ = '+cos2.toFixed(3), 30, H-45);
+    ctx.fillText('出射相对强度 = '+cos2.toFixed(3)+'（最大为 1）', 30, H-20);
+
+    document.getElementById('note').textContent =
+      '自然光 → 起偏器后强度 = I₀/2；经检偏器后 I = (I₀/2)cos²φ。当 φ=90°（正交）时光强为 0，屏全黑。';
+  }
+
+  var el = document.getElementById('phi'), out = document.getElementById('phiv');
+  el.addEventListener('input', function(){
+    phiDeg = parseFloat(el.value);
+    out.textContent = phiDeg.toFixed(0)+'°';
+    draw();
+  });
+  el.value = phiDeg;
+  draw();
+})();
+</script>
+</body>
+</html>
