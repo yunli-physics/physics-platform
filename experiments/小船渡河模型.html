@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小船渡河模型</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .h2 { font-weight: 700; font-size: 15px; margin: 10px 0 6px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 190px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 160px; }
+  .ctrl .val { width: 60px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #1565c0; }
+  .radio { display:flex; gap:16px; font-size:14px; margin:6px 0; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:14px; margin:6px 0; }
+  button { background:#eceff1; border:1px solid #ccc; border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer; margin:4px 6px 0 0; }
+  button:hover { background:#dde3e6; }
+  .stage { position: relative; }
+  canvas { width: 100%; background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  #info { position:absolute; left:6%; top:14%; background:rgba(255,255,255,.92);
+          border-radius:8px; padding:10px 14px; font-size:13px; line-height:1.8;
+          box-shadow:0 1px 3px rgba(0,0,0,.15); max-width:250px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🛰 小船渡河模型</h1>
+  <p class="desc">研究小船在流水中渡河：最短时间渡河与最短位移渡河两种策略。</p>
+  <div class="panel">
+    <div class="h2">渡河模式</div>
+    <div class="radio">
+      <label><input type="radio" name="mode" value="1" checked> 最短时间渡河</label>
+      <label><input type="radio" name="mode" value="2"> 最短位移渡河</label>
+    </div>
+    <div class="h2">河流参数</div>
+    <div class="ctrl"><label>水流速度 v水 (m/s)</label><input type="range" id="vW" min="0.3" max="3.5" step="0.1" value="1.5"><span class="val" id="vWv">1.5</span></div>
+    <div class="h2">小船参数</div>
+    <div class="ctrl"><label>船速 v船 (m/s)</label><input type="range" id="vB" min="0.5" max="4.0" step="0.1" value="2.0"><span class="val" id="vBv">2.0</span></div>
+    <div class="ctrl"><label>航行进度</label><input type="range" id="tp" min="0" max="1.0" step="0.02" value="0.5"><span class="val" id="tpv">0.50</span></div>
+    <div class="h2">显示选项</div>
+    <div class="chk"><input type="checkbox" id="sD" checked> 显示到达点</div>
+    <div class="chk"><input type="checkbox" id="sA" checked> 显示船头方向</div>
+    <div class="chk"><input type="checkbox" id="sC" checked> 显示辅助圆 (v船&lt;v水时)</div>
+    <div class="h2">快速预设</div>
+    <div>
+      <button data-p="p1">v船&gt;v水 (可垂直过河)</button>
+      <button data-p="p2">v船&lt;v水 (需辅助圆)</button>
+      <button data-p="p3">最短时间模式</button>
+      <button data-p="p4">平缓水流</button>
+      <button data-p="p5">急流</button>
+      <button data-p="p6">重置</button>
+    </div>
+  </div>
+  <div class="stage">
+    <canvas id="cv" width="760" height="646"></canvas>
+    <div id="info"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var riverWidth=200, shoreTop=200, shoreBottom=0;
+  var P={mode:1, vWater:1.5, vBoat:2.0, tProgress:0.5, sD:true, sA:true, sC:true};
+  var cv=document.getElementById('cv'), cx=cv.getContext('2d');
+  var W=cv.width,H=cv.height;
+  // PlotRange {{-20,250},{-10,220}}
+  function sx(x){ return (x+20)/270*W; }
+  function sy(y){ return H-(y+10)/230*H; }
+  function arrow(x1,y1,x2,y2,color,lw){
+    cx.strokeStyle=color; cx.lineWidth=lw;
+    cx.beginPath(); cx.moveTo(sx(x1),sy(y1)); cx.lineTo(sx(x2),sy(y2)); cx.stroke();
+    var ang=Math.atan2(sy(y2)-sy(y1),sx(x2)-sx(x1)); var hs=9;
+    cx.fillStyle=color;
+    cx.beginPath();
+    cx.moveTo(sx(x2),sy(y2));
+    cx.lineTo(sx(x2)-hs*Math.cos(ang-0.4),sy(y2)-hs*Math.sin(ang-0.4));
+    cx.lineTo(sx(x2)-hs*Math.cos(ang+0.4),sy(y2)-hs*Math.sin(ang+0.4));
+    cx.closePath(); cx.fill();
+  }
+  function update(){
+    var mode=P.mode, waterSpeed=P.vWater, boatSpeed=P.vBoat, tProgress=P.tProgress;
+    var timeMin=riverWidth/boatSpeed;
+    var driftMinTime=waterSpeed*timeMin;
+    var canCrossDirectly = boatSpeed>=waterSpeed;
+    var bestAngle, tangentAngle=0, driftShortestDisp=0, timeShortestDisp=0;
+    if(canCrossDirectly){
+      bestAngle=Math.asin(waterSpeed/boatSpeed);
+      timeShortestDisp=riverWidth/(boatSpeed*Math.cos(bestAngle));
+      driftShortestDisp=0;
+    } else {
+      bestAngle=Math.acos(boatSpeed/waterSpeed);
+      tangentAngle=Math.asin(boatSpeed/waterSpeed);
+      timeShortestDisp=riverWidth/(waterSpeed*Math.sin(tangentAngle));
+      driftShortestDisp=riverWidth/Math.tan(tangentAngle);
+    }
+    var bestAngleDeg=bestAngle*180/Math.PI;
+    var currentAngle = (mode===1) ? Math.PI/2 : bestAngle;
+    var vb=[boatSpeed*Math.cos(currentAngle), boatSpeed*Math.sin(currentAngle)];
+    var vw=[waterSpeed,0];
+    var vt=[vb[0]+vw[0], vb[1]+vw[1]];
+    var currentTime = vt[1]>0.001 ? riverWidth/vt[1] : 999;
+    var currentDrift = vt[1]>0.001 ? vt[0]*currentTime : vt[0]*10;
+    var boatPos;
+    if(currentTime<999) boatPos=[vt[0]*tProgress*currentTime, vt[1]*tProgress*currentTime];
+    else boatPos=[vt[0]*tProgress*10,0];
+    if(boatPos[1]>riverWidth) boatPos=[currentDrift,riverWidth];
+    if(boatPos[1]<0) boatPos=[currentDrift*0.5,0];
+    // path
+    var pathMax=Math.min(tProgress*currentTime, currentTime);
+    // draw
+    cx.clearRect(0,0,W,H);
+    // river
+    cx.fillStyle='rgba(166,217,242,0.4)';
+    cx.fillRect(sx(0),sy(shoreTop),sx(250)-sx(0),sy(shoreBottom)-sy(shoreTop));
+    // shores
+    cx.strokeStyle='#8d6e63'; cx.lineWidth=Math.max(2,0.015/230*H);
+    cx.beginPath(); cx.moveTo(sx(-20),sy(shoreBottom)); cx.lineTo(sx(250),sy(shoreBottom)); cx.stroke();
+    cx.beginPath(); cx.moveTo(sx(-20),sy(shoreTop)); cx.lineTo(sx(250),sy(shoreTop)); cx.stroke();
+    cx.fillStyle='#8d6e63'; cx.font='bold 14px sans-serif';
+    cx.fillText('河岸',sx(-10),sy(shoreBottom-8));
+    cx.fillText('对岸',sx(-10),sy(shoreTop+8));
+    // width dashed
+    cx.strokeStyle='#555'; cx.lineWidth=1; cx.setLineDash([5,4]);
+    cx.beginPath(); cx.moveTo(sx(-10),sy(shoreBottom)); cx.lineTo(sx(-10),sy(shoreTop)); cx.stroke();
+    cx.setLineDash([]);
+    cx.save(); cx.translate(sx(-16),sy(100)); cx.rotate(-Math.PI/2);
+    cx.fillStyle='#555'; cx.font='13px sans-serif'; cx.textAlign='center';
+    cx.fillText('河宽 d = 200 m',0,0); cx.restore(); cx.textAlign='left';
+    // water arrows
+    cx.strokeStyle='#3380ff'; cx.lineWidth=1.5;
+    for(var x=30;x<=220;x+=40){
+      for(var y=20;y<=180;y+=40){
+        arrow(x,y,x+12,y,'#3380ff',1.5);
+      }
+    }
+    cx.fillStyle='#3366e6'; cx.font='bold 14px sans-serif';
+    cx.fillText('水流 v水 = '+waterSpeed+' m/s', sx(120), sy(shoreTop+15));
+    // boat path
+    cx.strokeStyle='#e64d33'; cx.lineWidth=2; cx.setLineDash([6,4]);
+    cx.beginPath();
+    var started=false;
+    for(var tau=0; tau<=pathMax+1e-6; tau+=0.15){
+      var px=vt[0]*tau, py=vt[1]*tau;
+      if(!started){ cx.moveTo(sx(px),sy(py)); started=true; } else cx.lineTo(sx(px),sy(py));
+    }
+    cx.stroke(); cx.setLineDash([]);
+    // boat
+    cx.fillStyle='#e64d33';
+    cx.beginPath(); cx.arc(sx(boatPos[0]),sy(boatPos[1]),4,0,2*Math.PI); cx.fill();
+    cx.fillStyle='#fff';
+    cx.beginPath(); cx.arc(sx(boatPos[0]),sy(boatPos[1]),2.5,0,2*Math.PI); cx.fill();
+    cx.fillStyle='#e64d33'; cx.font='bold 13px sans-serif';
+    cx.fillText('船',sx(boatPos[0]+6),sy(boatPos[1]+6));
+    // start
+    cx.fillStyle='#888';
+    cx.beginPath(); cx.arc(sx(0),sy(0),3,0,2*Math.PI); cx.fill();
+    cx.fillStyle='#888'; cx.font='12px sans-serif';
+    cx.fillText('起点',sx(0),sy(-10));
+    // destination
+    if(P.sD){
+      var dest;
+      if(mode===2 && canCrossDirectly) dest=[0,riverWidth];
+      else if(mode===1) dest=[driftMinTime,riverWidth];
+      else dest=[driftShortestDisp,riverWidth];
+      cx.fillStyle='#1ab31a';
+      cx.beginPath(); cx.arc(sx(dest[0]),sy(dest[1]),5,0,2*Math.PI); cx.fill();
+      cx.fillStyle='#fff';
+      cx.beginPath(); cx.arc(sx(dest[0]),sy(dest[1]),3,0,2*Math.PI); cx.fill();
+      cx.fillStyle='#1ab31a'; cx.font='bold 13px sans-serif';
+      cx.fillText('到达',sx(dest[0]+8),sy(dest[1]+6));
+    }
+    // velocity vector diagram
+    cx.fillStyle='rgba(255,255,255,0.9)';
+    cx.fillRect(sx(145),sy(215),sx(245)-sx(145),sy(145)-sy(215));
+    cx.fillStyle='#333'; cx.font='bold 13px sans-serif';
+    cx.fillText('速度矢量图',sx(195),sy(208));
+    // origin (155,160)
+    var ox=155, oy=160;
+    arrow(ox,oy, ox+30*waterSpeed, oy, '#3380ff',2);
+    cx.fillStyle='#3366e6'; cx.font='12px sans-serif';
+    cx.fillText('v水', sx(ox+15*waterSpeed), sy(oy-5));
+    arrow(ox,oy, ox+25*Math.cos(currentAngle), oy+25*Math.sin(currentAngle), '#e64d33',2);
+    cx.fillStyle='#e64d33';
+    cx.fillText('v船', sx(ox+20*Math.cos(currentAngle)+5), sy(oy+20*Math.sin(currentAngle)));
+    arrow(ox,oy, ox+25*vt[0], oy+25*vt[1], '#8e24aa',2.5);
+    cx.fillStyle='#8e24aa';
+    cx.fillText('v合', sx(ox+20*vt[0]+5), sy(oy+20*vt[1]+5));
+    // auxiliary circle
+    if(mode===2 && !canCrossDirectly && P.sC){
+      var ccx=ox+25*waterSpeed, ccy=oy, cr=25*boatSpeed;
+      cx.strokeStyle='#999'; cx.lineWidth=1.5; cx.setLineDash([4,4]);
+      cx.beginPath(); cx.arc(sx(ccx),sy(ccy),sx(ccx+cr)-sx(ccx),0,2*Math.PI); cx.stroke();
+      cx.setLineDash([]);
+      cx.fillStyle='#888'; cx.font='10px sans-serif';
+      cx.fillText('v船半径', sx(ccx+13), sy(ccy+13*boatSpeed));
+      var tpx=ccx-25*boatSpeed*Math.cos(tangentAngle), tpy=ccy+25*boatSpeed*Math.sin(tangentAngle);
+      cx.fillStyle='red';
+      cx.beginPath(); cx.arc(sx(tpx),sy(tpy),3,0,2*Math.PI); cx.fill();
+      cx.fillStyle='red'; cx.font='10px sans-serif';
+      cx.fillText('切点', sx(tpx+8), sy(tpy+8));
+    }
+    // boat direction arrow
+    if(P.sA){
+      arrow(boatPos[0],boatPos[1], boatPos[0]+20*Math.cos(currentAngle), boatPos[1]+20*Math.sin(currentAngle), '#e64d33',2);
+    }
+    // info panel
+    var angDeg=Math.round(currentAngle*180/Math.PI*10)/10;
+    var html='';
+    html+='<b style="color:'+(mode===1?'#3380ff':'#e66633')+'">'+(mode===1?'【最短时间渡河】':'【最短位移渡河】')+'</b><br>';
+    html+='船头角度: <b>'+angDeg+'°</b><br>';
+    html+='渡河时间: <b>'+currentTime.toFixed(1)+' s</b><br>';
+    html+='漂流距离: <b>'+currentDrift.toFixed(1)+' m</b><br>';
+    html+='合位移: <b>'+Math.sqrt(currentDrift*currentDrift+riverWidth*riverWidth).toFixed(1)+' m</b><br>';
+    if(mode===1){
+      html+='<span style="color:#3380ff">策略: 船头垂直河岸</span><br>';
+      html+='<span style="color:#777">时间最短: t = d/v船</span>';
+    } else if(canCrossDirectly){
+      html+='<span style="color:#1a991a">v船 ≥ v水，可垂直过河</span><br>';
+      html+='<span style="color:#777">位移 = 河宽 (200 m)</span>';
+    } else {
+      html+='<span style="color:#e63333">v船 &lt; v水，无法垂直过河</span><br>';
+      html+='<span style="color:#777">合速度与圆相切时位移最短</span><br>';
+      html+='<span style="color:#777">船头角: '+Math.round(bestAngleDeg*10)/10+'°</span>';
+    }
+    document.getElementById('info').innerHTML=html;
+  }
+  // controls
+  function bind(id,key,dec){
+    var el=document.getElementById(id);
+    el.addEventListener('input',function(){
+      P[key]=parseFloat(el.value);
+      document.getElementById(id+'v').textContent=parseFloat(el.value).toFixed(dec);
+      update();
+    });
+  }
+  bind('vW','vWater',1); bind('vB','vBoat',1); bind('tp','tProgress',2);
+  document.querySelectorAll('input[name=mode]').forEach(function(r){
+    r.addEventListener('change',function(){ if(this.checked) P.mode=parseInt(this.value); update(); });
+  });
+  document.getElementById('sD').addEventListener('change',function(){P.sD=this.checked;update();});
+  document.getElementById('sA').addEventListener('change',function(){P.sA=this.checked;update();});
+  document.getElementById('sC').addEventListener('change',function(){P.sC=this.checked;update();});
+  function setSlider(id,val,dec){ var el=document.getElementById(id); el.value=val; document.getElementById(id+'v').textContent=val.toFixed(dec); }
+  function setMode(m){ P.mode=m; document.querySelector('input[name=mode][value="'+m+'"]').checked=true; }
+  document.querySelectorAll('button[data-p]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var p=b.getAttribute('data-p');
+      if(p==='p1'){ setSlider('vB',2.5,1); setSlider('vW',1.2,1); setMode(2); setSlider('tp',0.3,2); }
+      else if(p==='p2'){ setSlider('vB',1.2,1); setSlider('vW',2.5,1); setMode(2); setSlider('tp',0.3,2); }
+      else if(p==='p3'){ setSlider('vB',2.0,1); setSlider('vW',1.5,1); setMode(1); setSlider('tp',0.5,2); }
+      else if(p==='p4'){ setSlider('vW',0.8,1); setSlider('vB',2.0,1); setMode(2); setSlider('tp',0.4,2); }
+      else if(p==='p5'){ setSlider('vW',3.0,1); setSlider('vB',1.5,1); setMode(2); setSlider('tp',0.3,2); }
+      else if(p==='p6'){ setSlider('vW',1.5,1); setSlider('vB',2.0,1); setMode(1); setSlider('tp',0.5,2);
+        P.sD=P.sA=P.sC=true; document.getElementById('sD').checked=true; document.getElementById('sA').checked=true; document.getElementById('sC').checked=true; }
+      P.vWater=parseFloat(document.getElementById('vW').value);
+      P.vBoat=parseFloat(document.getElementById('vB').value);
+      P.tProgress=parseFloat(document.getElementById('tp').value);
+      update();
+    });
+  });
+  update();
+})();
+</script>
+</body>
+</html>
