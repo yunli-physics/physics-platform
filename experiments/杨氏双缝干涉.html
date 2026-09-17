@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>杨氏双缝干涉</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 200px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .col { flex: 1; min-width: 300px; }
+  .col h3 { font-size: 14px; text-align: center; margin-bottom: 6px; color:#333; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  .formula { margin-top: 14px; font-size: 14px; font-weight: bold; color:#222; line-height:1.7;
+             background:#f0f4fa; padding:10px 14px; border-radius:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>杨氏双缝干涉</h1>
+  <p class="desc">双缝干涉光强 I(x)=4cos²(π d x/(λ L))。左图为光强分布曲线，右图为接收屏上的干涉条纹（GrayTones 灰度，亮纹为白）。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="lam">入射光波长 λ (nm)</label>
+      <input type="range" id="lam" min="400" max="760" step="1" value="589">
+      <span class="val" id="lamv">589</span>
+    </div>
+    <div class="ctrl">
+      <label for="d0">双缝间距 d (mm)</label>
+      <input type="range" id="d0" min="0.1" max="1.5" step="0.05" value="0.5">
+      <span class="val" id="d0v">0.50</span>
+    </div>
+    <div class="ctrl">
+      <label for="L0">双缝到屏距离 L (m)</label>
+      <input type="range" id="L0" min="0.5" max="2.0" step="0.1" value="1.0">
+      <span class="val" id="L0v">1.0</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <h3>干涉光强分布</h3>
+      <canvas id="cv1" width="420" height="320"></canvas>
+    </div>
+    <div class="col">
+      <h3>双缝干涉条纹</h3>
+      <canvas id="cv2" width="420" height="105"></canvas>
+    </div>
+  </div>
+  <div class="formula" id="fbox"></div>
+</div>
+<script>
+(function(){
+  var lam_nm = 589, d0 = 0.5, L0 = 1.0;
+  var cv1 = document.getElementById('cv1'), ctx1 = cv1.getContext('2d');
+  var cv2 = document.getElementById('cv2'), ctx2 = cv2.getContext('2d');
+
+  function params(){
+    var lam = lam_nm * 1e-9, d = d0 * 1e-3, L = L0;
+    var I = function(x){ return 4*Math.pow(Math.cos(Math.PI*d*x/(lam*L)),2); };
+    var dx = L*lam/d;
+    var xRange = 6*dx;
+    return {lam:d, d:d, L:L, I:I, dx:dx, xRange:xRange};
+  }
+
+  function drawPlot(p){
+    var W = cv1.width, H = cv1.height;
+    ctx1.clearRect(0,0,W,H);
+    ctx1.fillStyle = '#fff'; ctx1.fillRect(0,0,W,H);
+    var padL=44, padR=14, padT=14, padB=38;
+    var plotW = W-padL-padR, plotH = H-padT-padB;
+    var xmin=-p.xRange, xmax=p.xRange, ymin=0, ymax=4.2;
+    function X(x){ return padL + (x-xmin)/(xmax-xmin)*plotW; }
+    function Y(y){ return padT + plotH - (y-ymin)/(ymax-ymin)*plotH; }
+    // 网格
+    ctx1.strokeStyle = '#e8e8e8'; ctx1.lineWidth=1;
+    for(var gx=-6; gx<=6; gx++){
+      var xv = gx*p.dx;
+      ctx1.beginPath(); ctx1.moveTo(X(xv),padT); ctx1.lineTo(X(xv),padT+plotH); ctx1.stroke();
+    }
+    // 坐标轴
+    ctx1.strokeStyle = '#333'; ctx1.lineWidth=1.5;
+    ctx1.beginPath(); ctx1.moveTo(X(0),padT); ctx1.lineTo(X(0),padT+plotH); ctx1.stroke(); // 中线
+    ctx1.beginPath(); ctx1.moveTo(padL,Y(0)); ctx1.lineTo(padL+plotW,Y(0)); ctx1.stroke();
+    // 曲线
+    ctx1.strokeStyle = '#1565c0'; ctx1.lineWidth=2;
+    ctx1.beginPath();
+    var N=400;
+    for(var i=0;i<=N;i++){
+      var x = xmin + (xmax-xmin)*i/N;
+      var y = p.I(x);
+      if(i===0) ctx1.moveTo(X(x),Y(y)); else ctx1.lineTo(X(x),Y(y));
+    }
+    ctx1.stroke();
+    // 轴标签
+    ctx1.fillStyle='#333'; ctx1.font='12px sans-serif';
+    ctx1.textAlign='center'; ctx1.fillText('位置 x (m)', padL+plotW/2, H-8);
+    ctx1.save();
+    ctx1.translate(12, padT+plotH/2); ctx1.rotate(-Math.PI/2);
+    ctx1.fillText('相对光强 I', 0, 0);
+    ctx1.restore();
+  }
+
+  function drawFringe(p){
+    var W = cv2.width, H = cv2.height;
+    var img = ctx2.createImageData(W,H);
+    var xmin=-p.xRange, xmax=p.xRange;
+    for(var px=0; px<W; px++){
+      var x = xmin + (xmax-xmin)*px/(W-1);
+      var v = p.I(x)/4; // 0..1, GrayTones: 0黑 1白
+      var g = Math.round(v*255);
+      for(var py=0; py<H; py++){
+        var idx = (py*W+px)*4;
+        img.data[idx]=g; img.data[idx+1]=g; img.data[idx+2]=g; img.data[idx+3]=255;
+      }
+    }
+    ctx2.putImageData(img,0,0);
+  }
+
+  function drawFormula(p){
+    var dxVal = (L0*lam_nm*1e-9)/(d0*1e-3);
+    var s = dxVal.toExponential(3);
+    document.getElementById('fbox').innerHTML =
+      '条纹间距 Δx = ' + s + ' m<br>' +
+      '公式：Δx = Lλ/d　　明纹：Δs = kλ　　暗纹：Δs = (2k+1)λ/2';
+  }
+
+  function draw(){
+    var p = params();
+    drawPlot(p);
+    drawFringe(p);
+    drawFormula(p);
+  }
+
+  function bind(id, key, fmt){
+    var el = document.getElementById(id), out = document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      var v = parseFloat(el.value);
+      if(key==='lam') lam_nm=v; else if(key==='d0') d0=v; else L0=v;
+      out.textContent = fmt(v);
+      draw();
+    });
+  }
+  document.getElementById('lam').value = lam_nm;
+  document.getElementById('d0').value = d0;
+  document.getElementById('L0').value = L0;
+  bind('lam','lam',function(v){return v.toFixed(0);});
+  bind('d0','d0',function(v){return v.toFixed(2);});
+  bind('L0','L0',function(v){return v.toFixed(1);});
+  draw();
+})();
+</script>
+</body>
+</html>
