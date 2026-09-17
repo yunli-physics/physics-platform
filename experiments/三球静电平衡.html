@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三球静电平衡</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .tabs button { padding:8px 16px; border:none; border-radius:8px; background:#e3e8ef; cursor:pointer; font-size:14px; }
+  .tabs button.active { background:#1565c0; color:#fff; }
+  .panel { background:#fff; border-radius:10px; padding:14px 20px; box-shadow:0 1px 4px rgba(0,0,0,.08); margin-bottom:14px; }
+  .ctrl { display:flex; align-items:center; gap:10px; margin:7px 0; flex-wrap:wrap; }
+  .ctrl label { width:150px; font-size:14px; }
+  .ctrl input[type=range]{ flex:1; min-width:160px; }
+  .ctrl .val{ width:60px; text-align:right; font-variant-numeric:tabular-nums; font-weight:600; color:#1565c0; }
+  .note{ font-size:13px; color:#555; background:#fffbe6; border:1px solid #ffe58f; border-radius:6px; padding:8px 12px; margin-bottom:12px; }
+  canvas{ width:100%; background:#f4f4f4; border:1px solid #e0e0e0; border-radius:8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>三球静电平衡</h1>
+  <p class="desc">点电荷系统的静电平衡位置。切换两种情况，观察电荷分布与几何的关系。</p>
+  <div class="tabs">
+    <button id="tab1" class="active">情况一：固定两球，求第三球平衡位置</button>
+    <button id="tab2">情况二：三球自由平衡构型</button>
+  </div>
+  <div class="note" id="note"></div>
+
+  <div class="panel" id="panel1">
+    <div class="ctrl"><label>左球电荷 q₁</label><input type="range" id="q1" min="-3" max="3" step="0.1" value="1"><span class="val" id="q1v">1.0</span></div>
+    <div class="ctrl"><label>右球电荷 q₂</label><input type="range" id="q2" min="-3" max="3" step="0.1" value="1"><span class="val" id="q2v">1.0</span></div>
+    <div class="ctrl"><label>第三球电荷 q₃</label><input type="range" id="q3" min="-3" max="3" step="0.1" value="-1"><span class="val" id="q3v">-1.0</span></div>
+    <div class="ctrl"><label>两固定球距离 d</label><input type="range" id="d" min="0.8" max="5" step="0.1" value="2"><span class="val" id="dv">2.0</span></div>
+  </div>
+
+  <div class="panel" id="panel2" style="display:none">
+    <div class="ctrl"><label>左球电荷绝对值 |q₁|</label><input type="range" id="q1a" min="0.2" max="5" step="0.1" value="1"><span class="val" id="q1av">1.0</span></div>
+    <div class="ctrl"><label>右球电荷绝对值 |q₃|</label><input type="range" id="q3a" min="0.2" max="5" step="0.1" value="1"><span class="val" id="q3av">1.0</span></div>
+    <div class="ctrl"><label>两端总距离 L</label><input type="range" id="L" min="0.8" max="6" step="0.1" value="2"><span class="val" id="Lv">2.0</span></div>
+    <div class="ctrl"><label>两端电荷符号</label>
+      <select id="sign" style="padding:6px; font-size:14px;">
+        <option value="1">两端为正，中间为负</option>
+        <option value="-1">两端为负，中间为正</option>
+      </select>
+    </div>
+  </div>
+
+  <canvas id="cv" width="880" height="360"></canvas>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  var W=cv.width,H=cv.height, caseNo=1;
+
+  function sgn(x){ return x>0?1:(x<0?-1:0); }
+  // field between two fixed charges at 0 and d
+  function field(x,q1,q2,d){ return q1*sgn(x)/(x*x) + q2*sgn(x-d)/Math.pow(x-d,2); }
+  function findEq(q1,q2,d){
+    // scan for roots of field(x)=0, exclude near 0 and d
+    var roots=[]; var lo=-10*d, hi=10*d, n=4000, prevX=lo, prevF=field(lo,q1,q2,d);
+    for(var i=1;i<=n;i++){
+      var x=lo+(hi-lo)*i/n;
+      if(Math.abs(x)<d*0.02 || Math.abs(x-d)<d*0.02){ prevX=x; prevF=field(x,q1,q2,d); continue; }
+      var f=field(x,q1,q2,d);
+      if(prevF!==0 && sgn(prevF)!==sgn(f)){
+        // bisect
+        var a=prevX,b=x;
+        for(var k=0;k<60;k++){ var m=(a+b)/2; if(sgn(field(a,q1,q2,d))===sgn(field(m,q1,q2,d))) a=m; else b=m; }
+        roots.push((a+b)/2);
+      }
+      prevX=x; prevF=f;
+    }
+    if(roots.length===0) return null;
+    roots.sort(function(a,b){return Math.abs(a)-Math.abs(b);});
+    return roots[0];
+  }
+  function colorOf(q){ return q>0?'#e53935':(q<0?'#1565c0':'#999'); }
+  function labelOf(q){ return q>0?'+':(q<0?'-':'0'); }
+
+  function drawBall(x,y,r,ch){
+    ctx.fillStyle=colorOf(ch); ctx.beginPath(); ctx.arc(x,y,r,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold '+(r)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(labelOf(ch), x, y+1);
+  }
+
+  function drawCase1(){
+    var q1=+document.getElementById('q1').value, q2=+document.getElementById('q2').value,
+        q3=+document.getElementById('q3').value, d=+document.getElementById('d').value;
+    document.getElementById('q1v').textContent=q1.toFixed(1);
+    document.getElementById('q2v').textContent=q2.toFixed(1);
+    document.getElementById('q3v').textContent=q3.toFixed(1);
+    document.getElementById('dv').textContent=d.toFixed(1);
+    document.getElementById('note').textContent='规律：同号固定球时平衡点在两球之间；异号固定球时平衡点在外侧。第三球放在合场强为零处，与自身电荷正负无关。';
+    ctx.clearRect(0,0,W,H);
+    var y0=H/2, r=0.08*d*W/2.2; r=Math.min(r,40);
+    var xOf=function(x){ return W*0.18 + x/(1.6*d)*W*0.64; };
+    // baseline
+    ctx.strokeStyle='#666'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(xOf(-0.6*d),y0); ctx.lineTo(xOf(1.6*d),y0); ctx.stroke();
+    drawBall(xOf(0),y0,r,q1);
+    drawBall(xOf(d),y0,r,q2);
+    var xe=findEq(q1,q2,d);
+    if(xe===null || isNaN(xe)){
+      ctx.fillStyle='#000'; ctx.font='bold 18px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('无有限平衡点', W/2, y0-60);
+    } else {
+      // dashed marker
+      ctx.strokeStyle='#2e7d32'; ctx.setLineDash([5,4]); ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(xOf(xe),y0-0.22*d*W/2.2*0+ -40); ctx.lineTo(xOf(xe),y0+40); ctx.stroke();
+      ctx.setLineDash([]);
+      drawBall(xOf(xe),y0,r,q3);
+      ctx.fillStyle='#000'; ctx.font='15px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('平衡位置 x = '+xe.toFixed(3), xOf(xe), y0-60);
+    }
+    ctx.textAlign='left';
+  }
+
+  function drawCase2(){
+    var q1A=+document.getElementById('q1a').value, q3A=+document.getElementById('q3a').value,
+        L=+document.getElementById('L').value, sign=+document.getElementById('sign').value;
+    document.getElementById('q1av').textContent=q1A.toFixed(1);
+    document.getElementById('q3av').textContent=q3A.toFixed(1);
+    document.getElementById('Lv').textContent=L.toFixed(1);
+    document.getElementById('note').textContent='规律：三球自由平衡时必须共线；两端同号、中间异号；中间球更靠近电量较小的一端，且 a/b = √(|q₁|/|q₃|)。';
+    ctx.clearRect(0,0,W,H);
+    var scale=L/(Math.sqrt(q1A)+Math.sqrt(q3A));
+    var leftGap=scale*Math.sqrt(q1A), rightGap=scale*Math.sqrt(q3A);
+    var q2Abs=q1A*q3A/Math.pow(Math.sqrt(q1A)+Math.sqrt(q3A),2);
+    var c1=sign*q1A, c2=-sign*q2Abs, c3=sign*q3A;
+    var y0=H/2, r=Math.min(0.06*L*W/1.3,40);
+    var xOf=function(x){ return W*0.08 + x/(1.15*L)*W*0.84; };
+    ctx.strokeStyle='#666'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(xOf(-0.15*L),y0); ctx.lineTo(xOf(1.15*L),y0); ctx.stroke();
+    var pos=[0,leftGap,L];
+    drawBall(xOf(pos[0]),y0,r,c1);
+    drawBall(xOf(pos[1]),y0,r,c2);
+    drawBall(xOf(pos[2]),y0,r,c3);
+    ctx.fillStyle='#000'; ctx.font='14px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('左间距 a='+leftGap.toFixed(3), xOf(leftGap/2), y0-60);
+    ctx.fillText('右间距 b='+rightGap.toFixed(3), xOf((leftGap+L)/2), y0-60);
+    ctx.font='13px sans-serif';
+    ctx.fillText('中间球 |q₂|='+q2Abs.toFixed(3), xOf(leftGap), y0+60);
+    ctx.textAlign='left';
+  }
+
+  function draw(){ if(caseNo===1) drawCase1(); else drawCase2(); }
+
+  ['q1','q2','q3','d'].forEach(function(id){ document.getElementById(id).addEventListener('input',draw); });
+  ['q1a','q3a','L'].forEach(function(id){ document.getElementById(id).addEventListener('input',draw); });
+  document.getElementById('sign').addEventListener('change',draw);
+  document.getElementById('tab1').addEventListener('click',function(){
+    caseNo=1; this.classList.add('active'); document.getElementById('tab2').classList.remove('active');
+    document.getElementById('panel1').style.display=''; document.getElementById('panel2').style.display='none'; draw();
+  });
+  document.getElementById('tab2').addEventListener('click',function(){
+    caseNo=2; this.classList.add('active'); document.getElementById('tab1').classList.remove('active');
+    document.getElementById('panel1').style.display='none'; document.getElementById('panel2').style.display=''; draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>
