@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>探究平抛运动的特点</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .h2 { font-weight: 700; font-size: 15px; margin: 10px 0 4px; color:#1a4f99; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 7px 0; flex-wrap: wrap; }
+  .ctrl label { width: 170px; font-size: 13px; }
+  .ctrl input[type=range] { flex: 1; min-width: 150px; }
+  .ctrl .val { width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #1565c0; }
+  .ctrl.disabled { opacity: 0.4; }
+  .chk { display:flex; align-items:center; gap:8px; font-size:13px; margin:5px 0; }
+  button { background:#eceff1; border:1px solid #ccc; border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; margin:3px 4px 0 0; }
+  button:hover { background:#dde3e6; }
+  .stage { position: relative; }
+  canvas { width: 100%; background: #f2ede2; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  #report { position:absolute; right:2%; top:2%; background:rgba(255,255,255,0.93);
+            border-radius:10px; padding:10px 14px; font-size:12px; line-height:1.7;
+            box-shadow:0 1px 4px rgba(0,0,0,.2); max-width:290px; border:1px solid #bbb; }
+  #report b.b { color:#1a4f99; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔬 实验：探究平抛运动的特点</h1>
+  <p class="desc">用频闪照相记录小球平抛轨迹，分析水平方向匀速、竖直方向自由落体，并反推初速度与重力加速度。</p>
+  <div class="panel">
+    <div class="h2">⚙ 实验操作参数</div>
+    <div class="ctrl"><label>平抛初速度 v₀ (m/s)</label><input type="range" id="v0" min="0.8" max="3.2" step="0.05" value="1.8"><span class="val" id="v0v">1.80</span></div>
+    <div class="ctrl"><label>下落高度 h (m)</label><input type="range" id="h" min="0.3" max="1.5" step="0.05" value="0.85"><span class="val" id="hv">0.85</span></div>
+    <div class="ctrl"><label>频闪时间间隔 T (s)</label><input type="range" id="T" min="0.04" max="0.2" step="0.01" value="0.08"><span class="val" id="Tv">0.08</span></div>
+    <div class="h2">📍 释放位置标记</div>
+    <div class="chk"><input type="checkbox" id="sR" checked> 显示释放点</div>
+    <div class="ctrl"><label>释放点 x</label><input type="range" id="rX" min="-1.2" max="-0.3" step="0.05" value="-0.8"><span class="val" id="rXv">-0.80</span></div>
+    <div class="ctrl"><label>释放点 y</label><input type="range" id="rY" min="0.15" max="0.35" step="0.01" value="0.25"><span class="val" id="rYv">0.25</span></div>
+    <div class="h2">📷 数据采集与显示</div>
+    <div class="chk"><input type="checkbox" id="iE"> 添加测量误差</div>
+    <div class="ctrl" id="rwEx"><label>水平误差幅度 (m)</label><input type="range" id="eX" min="0.002" max="0.04" step="0.002" value="0.01"><span class="val" id="eXv">0.010</span></div>
+    <div class="ctrl" id="rwEy"><label>竖直误差幅度 (m)</label><input type="range" id="eY" min="0.002" max="0.04" step="0.002" value="0.008"><span class="val" id="eYv">0.008</span></div>
+    <div class="h2">👁 显示选项</div>
+    <div class="chk"><input type="checkbox" id="sH" checked> 水平位移分析</div>
+    <div class="chk"><input type="checkbox" id="sV" checked> 竖直位移分析</div>
+    <div class="chk"><input type="checkbox" id="sN"> 显示频闪点序号</div>
+    <div class="chk"><input type="checkbox" id="sEB" checked> 显示误差连线</div>
+    <div class="chk"><input type="checkbox" id="sL" checked> 显示器材标签</div>
+    <div class="ctrl"><label>高亮小球位置 (0=无)</label><input type="range" id="cB" min="0" max="20" step="1" value="0"><span class="val" id="cBv">0</span></div>
+    <div class="h2">⚡ 快速预设场景</div>
+    <div>
+      <button data-p="b1">标准实验</button>
+      <button data-p="b2">带误差实验</button>
+      <button data-p="b3">快速平抛</button>
+      <button data-p="b4">慢速平抛</button>
+      <button data-p="b5">大采样间隔</button>
+      <button data-p="b6">重置默认</button>
+    </div>
+  </div>
+  <div class="stage">
+    <canvas id="cv" width="760" height="680"></canvas>
+    <div id="report"></div>
+  </div>
+</div>
+<script>
+(function(){
+  var g=9.8;
+  var P={v0:1.8,h:0.85,T:0.08,sR:true,rX:-0.8,rY:0.25,iE:false,eX:0.01,eY:0.008,
+         sH:true,sV:true,sN:false,sEB:true,sL:true,cB:0};
+  var cv=document.getElementById('cv'), cx=cv.getContext('2d');
+  var W=cv.width,H=cv.height;
+  function mean(a){ if(a.length===0) return 0; return a.reduce(function(s,x){return s+x;},0)/a.length; }
+  function std(a){ if(a.length<2) return 0; var m=mean(a); var s=a.reduce(function(q,x){return q+(x-m)*(x-m);},0); return Math.sqrt(s/(a.length-1)); }
+  function arrow(x1,y1,x2,y2,color,lw){
+    cx.strokeStyle=color; cx.lineWidth=lw;
+    cx.beginPath(); cx.moveTo(mx(x1),my(y1)); cx.lineTo(mx(x2),my(y2)); cx.stroke();
+    var ang=Math.atan2(my(y2)-my(y1),mx(x2)-mx(x1)); var hs=7;
+    cx.fillStyle=color;
+    cx.beginPath();
+    cx.moveTo(mx(x2),my(y2));
+    cx.lineTo(mx(x2)-hs*Math.cos(ang-0.4),my(y2)-hs*Math.sin(ang-0.4));
+    cx.lineTo(mx(x2)-hs*Math.cos(ang+0.4),my(y2)-hs*Math.sin(ang+0.4));
+    cx.closePath(); cx.fill();
+  }
+  var Xmin,Xmax,Ymin,Ymax,mx,my;
+  function update(){
+    var v0=P.v0, height=P.h, T=P.T;
+    var timeMax=Math.sqrt(2*height/g);
+    Xmin=-0.5; Xmax=v0*timeMax+0.8;
+    Ymin=-0.3; Ymax=height+0.3;
+    mx=function(x){ return (x-Xmin)/(Xmax-Xmin)*W; };
+    my=function(y){ return H-(y-Ymin)/(Ymax-Ymin)*H; };
+    var n=Math.floor(timeMax/T);
+    var ideal=[], measured=[];
+    for(var i=0;i<=n;i++){
+      var t=i*T;
+      var ip=[v0*t, 0.5*g*t*t];
+      ideal.push(ip);
+      if(P.iE) measured.push([ip[0]+P.eX*(2*Math.random()-1), ip[1]+P.eY*(2*Math.random()-1)]);
+      else measured.push([ip[0],ip[1]]);
+    }
+    var hD=[], vD=[], i;
+    for(i=0;i<measured.length-1;i++){ hD.push(measured[i+1][0]-measured[i][0]); vD.push(measured[i+1][1]-measured[i][1]); }
+    var dY=[]; for(i=0;i<vD.length-1;i++) dY.push(vD[i+1]-vD[i]);
+    var hUniform = hD.length>=2 ? (std(hD) < 0.06*mean(hD)) : true;
+    var vFree = dY.length>=2 ? (Math.abs(mean(dY)-g*T*T) < 0.2*g*T*T) : true;
+    var calcV0 = hD.length>=1 ? mean(hD)/T : 0;
+    var calcG = dY.length>=2 ? mean(dY)/(T*T) : 0;
+    cx.clearRect(0,0,W,H);
+    cx.fillStyle='#f2ede2'; cx.fillRect(0,0,W,H);
+    cx.fillStyle='#b28c66';
+    cx.fillRect(mx(-1.5),my(0),mx(Xmax)-mx(-1.5),my(-0.08)-my(0));
+    cx.fillStyle='#fafaf2';
+    cx.fillRect(mx(0),my(height+0.15),mx(v0*timeMax+0.3)-mx(0),my(0)-my(height+0.15));
+    cx.fillStyle='#888'; cx.font='italic 13px sans-serif'; cx.textAlign='center';
+    cx.fillText('白纸 / 木板',mx(v0*timeMax/2),my(height+0.08));
+    cx.textAlign='left';
+    arrow(-0.15,0, v0*timeMax+0.6,0, '#000',2);
+    arrow(0,-0.15, 0,height+0.25, '#000',2);
+    cx.fillStyle='#1a4f99'; cx.font='bold 13px sans-serif';
+    cx.fillText('x (水平方向)',mx(v0*timeMax/2),my(-0.18));
+    cx.save(); cx.translate(mx(-0.22),my(height/2)); cx.rotate(-Math.PI/2);
+    cx.fillText('y (竖直向下)',0,0); cx.restore();
+    cx.fillStyle='red';
+    cx.beginPath(); cx.arc(mx(0),my(0),Math.max(2,(mx(0.04)-mx(0))),0,2*Math.PI); cx.fill();
+    cx.fillStyle='red'; cx.font='bold 12px sans-serif';
+    cx.fillText('O (球心投影)',mx(0.15),my(-0.12));
+    cx.strokeStyle='#555'; cx.lineWidth=1.5; cx.setLineDash([5,4]);
+    cx.beginPath(); cx.moveTo(mx(0),my(-0.2)); cx.lineTo(mx(0),my(height+0.2)); cx.stroke();
+    cx.setLineDash([]);
+    cx.save(); cx.translate(mx(-0.15),my(height/2)); cx.rotate(-Math.PI/2);
+    cx.fillStyle='#666'; cx.font='11px sans-serif'; cx.textAlign='center'; cx.fillText('铅垂线',0,0); cx.restore(); cx.textAlign='left';
+    cx.strokeStyle='#888'; cx.lineWidth=4; cx.lineCap='round';
+    cx.beginPath();
+    cx.moveTo(mx(-1.2),my(0.35));
+    cx.bezierCurveTo(mx(-0.85),my(0.2),mx(-0.45),my(0.06),mx(0),my(0));
+    cx.stroke();
+    cx.strokeStyle='#777'; cx.lineWidth=3;
+    cx.beginPath(); cx.moveTo(mx(-0.4),my(0.02)); cx.lineTo(mx(0),my(0)); cx.stroke();
+    cx.fillStyle='#33b35a';
+    cx.fillRect(mx(-0.3),my(0.1),mx(-0.1)-mx(-0.3),my(0.06)-my(0.1));
+    cx.fillStyle='#1b6e30'; cx.font='bold 10px sans-serif';
+    cx.fillText('水平 ✓',mx(-0.2),my(0.16));
+    if(P.sR){
+      cx.fillStyle='#e64d33';
+      cx.beginPath(); cx.arc(mx(P.rX),my(P.rY),Math.max(2,(mx(0.035)-mx(0))*1.2),0,2*Math.PI); cx.fill();
+      cx.font='bold 11px sans-serif';
+      cx.fillText('释放点',mx(P.rX-0.2),my(P.rY+0.08));
+    }
+    cx.strokeStyle='rgba(51,128,230,0.5)'; cx.lineWidth=1.5; cx.setLineDash([5,4]);
+    cx.beginPath();
+    var st=false;
+    for(var tt=0; tt<=timeMax; tt+=0.005){
+      var px=v0*tt, py=0.5*g*tt*tt;
+      if(!st){ cx.moveTo(mx(px),my(py)); st=true;} else cx.lineTo(mx(px),my(py));
+    }
+    cx.stroke(); cx.setLineDash([]);
+    cx.fillStyle='#3380e6'; cx.font='italic 10px sans-serif';
+    cx.fillText('理论轨迹',mx(v0*timeMax*0.6),my(0.5*g*(timeMax*0.6)*(timeMax*0.6)+0.1));
+    if(P.sH && hD.length>=1){
+      cx.strokeStyle='rgba(51,153,51,0.5)'; cx.lineWidth=1; cx.setLineDash([4,3]);
+      for(i=0;i<measured.length;i++){ cx.beginPath(); cx.moveTo(mx(measured[i][0]),my(0)); cx.lineTo(mx(measured[i][0]),my(measured[i][1])); cx.stroke(); }
+      cx.setLineDash([]);
+      for(i=0;i<Math.min(hD.length,10);i++){
+        var x1=measured[i][0], x2=measured[i+1][0];
+        arrow(x1,-0.06-0.02*i, x2,-0.06-0.02*i, '#339933',1.5);
+        cx.fillStyle='#339933'; cx.font='9px sans-serif';
+        cx.fillText(hD[i].toFixed(3), mx((x1+x2)/2), my(-0.12-0.02*i));
+      }
+    }
+    if(P.sV && vD.length>=1){
+      cx.strokeStyle='rgba(153,51,153,0.5)'; cx.lineWidth=1; cx.setLineDash([4,3]);
+      for(i=0;i<measured.length;i++){ cx.beginPath(); cx.moveTo(mx(0),my(measured[i][1])); cx.lineTo(mx(measured[i][0]),my(measured[i][1])); cx.stroke(); }
+      cx.setLineDash([]);
+      for(i=0;i<Math.min(vD.length,10);i++){
+        var y1=measured[i][1], y2=measured[i+1][1];
+        arrow(-0.06-0.02*i,y1, -0.06-0.02*i,y2, '#993399',1.5);
+        cx.fillStyle='#993399'; cx.font='9px sans-serif';
+        cx.save(); cx.translate(mx(-0.14-0.03*i),my((y1+y2)/2)); cx.rotate(-Math.PI/2);
+        cx.fillText(vD[i].toFixed(3),0,0); cx.restore();
+      }
+    }
+    if(P.iE && P.sEB){
+      cx.strokeStyle='#888'; cx.lineWidth=1; cx.setLineDash([2,3]);
+      for(i=0;i<measured.length;i++){ cx.beginPath(); cx.moveTo(mx(ideal[i][0]),my(ideal[i][1])); cx.lineTo(mx(measured[i][0]),my(measured[i][1])); cx.stroke(); }
+      cx.setLineDash([]);
+    }
+    cx.fillStyle='#e63326';
+    for(i=0;i<measured.length;i++){ cx.beginPath(); cx.arc(mx(measured[i][0]),my(measured[i][1]),Math.max(2,mx(0.035)-mx(0)),0,2*Math.PI); cx.fill(); }
+    if(P.sN){
+      cx.fillStyle='#cc3333'; cx.font='bold 9px sans-serif';
+      for(i=0;i<Math.min(measured.length,15);i++){ cx.fillText(String(i),mx(measured[i][0]+0.06),my(measured[i][1]+0.06)); }
+    }
+    if(P.cB>0 && P.cB<=measured.length){
+      var bp=measured[P.cB-1];
+      cx.fillStyle='#e63326';
+      cx.beginPath(); cx.arc(mx(bp[0]),my(bp[1]),Math.max(2,mx(0.06)-mx(0)),0,2*Math.PI); cx.fill();
+      cx.fillStyle='#fff';
+      cx.beginPath(); cx.arc(mx(bp[0]),my(bp[1]),Math.max(1,(mx(0.06)-mx(0))*0.5),0,2*Math.PI); cx.fill();
+    }
+    if(P.sL){
+      cx.fillStyle='#666'; cx.font='12px sans-serif';
+      cx.fillText('斜槽',mx(-0.6),my(0.25));
+      cx.fillText('小球',mx(-0.3),my(0.3));
+      cx.save(); cx.translate(mx(-0.2),my(height*0.7)); cx.rotate(-Math.PI/2);
+      cx.fillText('铅垂线',0,0); cx.restore();
+      cx.save(); cx.translate(mx(v0*timeMax+0.15),my(height/2)); cx.rotate(-Math.PI/2);
+      cx.fillText('刻度尺',0,0); cx.restore(); cx.textAlign='left';
+    }
+    var hmin=hD.length?Math.min.apply(null,hD):0, hmax=hD.length?Math.max.apply(null,hD):0;
+    var relErr = Math.abs(calcV0-v0)/Math.max(v0,0.01)*100;
+    var html='<b class="b">📊 实验数据处理报告</b><br>';
+    html+='<b style="color:#1a4f99">▶ 水平方向分析:</b><br>';
+    html+='相邻位移范围: '+(hD.length>=2?('<b>'+hmin.toFixed(3)+' ~ '+hmax.toFixed(3)+' m</b>'):'数据不足')+'<br>';
+    html+='位移标准差: '+(hD.length>=2?('<span style="color:'+(hUniform?'#1b8a1b':'#e53935')+'">'+std(hD).toFixed(4)+' m</span>'):'')+'<br>';
+    html+='验证结论: <b style="color:'+(hUniform?'#1b8a1b':'#e53935')+'">'+(hUniform?'✓ 水平方向为匀速直线运动':'✗ 水平位移不均匀')+'</b><br><br>';
+    html+='<b style="color:#1a4f99">▶ 竖直方向分析:</b><br>';
+    html+='Δy(逐差): '+(dY.length>=1?('<b>'+mean(dY).toFixed(4)+' m</b>'):'数据不足')+'<br>';
+    html+='期望值 gT² = '+(g*T*T).toFixed(4)+' m <span style="color:#888">(逐差法)</span><br>';
+    html+='验证结论: <b style="color:'+(vFree?'#1b8a1b':'#e53935')+'">'+(vFree?'✓ 竖直方向为自由落体运动':'✗ 不符合自由落体')+'</b><br><br>';
+    html+='<b style="color:#1a4f99">▶ 计算结果:</b><br>';
+    html+='初速度 v₀: <b style="color:#3366cc">'+calcV0.toFixed(2)+' m/s</b><br>';
+    html+='实际初速度: <span style="color:#888">'+v0.toFixed(2)+' m/s</span><br>';
+    html+='相对误差: <b style="color:'+(relErr<5?'#1b8a1b':'#e64d33')+'">'+relErr.toFixed(1)+'%</b><br>';
+    html+='重力加速度 g: <b style="color:#3333aa">'+calcG.toFixed(2)+' m/s²</b><br><br>';
+    html += P.iE ? '<span style="color:#e64d33">⚠ 已添加随机测量误差</span>' : '<span style="color:#1b8a1b">✓ 理想实验数据(无误差)</span>';
+    document.getElementById('report').innerHTML=html;
+  }
+  function bind(id,key,dec){
+    var el=document.getElementById(id);
+    el.addEventListener('input',function(){ P[key]=parseFloat(el.value); document.getElementById(id+'v').textContent=parseFloat(el.value).toFixed(dec); update(); });
+  }
+  bind('v0','v0',2); bind('h','h',2); bind('T','T',2);
+  bind('rX','rX',2); bind('rY','rY',2); bind('eX','eX',3); bind('eY','eY',3); bind('cB','cB',0);
+  function chk(id,key){ document.getElementById(id).addEventListener('change',function(){ P[key]=this.checked; enab(); update(); }); }
+  chk('sR','sR'); chk('iE','iE'); chk('sH','sH'); chk('sV','sV'); chk('sN','sN'); chk('sEB','sEB'); chk('sL','sL');
+  function enab(){
+    var on=P.iE;
+    document.getElementById('rwEx').className='ctrl'+(on?'':' disabled');
+    document.getElementById('rwEy').className='ctrl'+(on?'':' disabled');
+  }
+  function setS(id,v,dec){ var el=document.getElementById(id); el.value=v; document.getElementById(id+'v').textContent=v.toFixed(dec); }
+  document.querySelectorAll('button[data-p]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var c=b.getAttribute('data-p');
+      if(c==='b1'){ setS('v0',1.8,2);setS('h',0.85,2);setS('T',0.08,2);P.iE=false;document.getElementById('iE').checked=false;P.sH=true;P.sV=true;P.cB=0;setS('cB',0,0); }
+      else if(c==='b2'){ setS('v0',1.8,2);setS('h',0.85,2);setS('T',0.08,2);P.iE=true;document.getElementById('iE').checked=true;setS('eX',0.012,3);setS('eY',0.01,3);P.eX=0.012;P.eY=0.01; }
+      else if(c==='b3'){ setS('v0',3.0,2);setS('h',0.6,2);setS('T',0.06,2);P.iE=false;document.getElementById('iE').checked=false; }
+      else if(c==='b4'){ setS('v0',1.0,2);setS('h',1.2,2);setS('T',0.12,2);P.iE=false;document.getElementById('iE').checked=false; }
+      else if(c==='b5'){ setS('v0',2.0,2);setS('h',1.0,2);setS('T',0.15,2);P.iE=false;document.getElementById('iE').checked=false; }
+      else if(c==='b6'){ setS('v0',1.8,2);setS('h',0.85,2);setS('T',0.08,2);P.iE=false;document.getElementById('iE').checked=false;
+        P.sH=true;P.sV=true;P.sR=true;P.sN=false;P.sEB=true;P.sL=true;P.cB=0;setS('cB',0,0);
+        document.getElementById('sH').checked=true;document.getElementById('sV').checked=true;document.getElementById('sR').checked=true;
+        document.getElementById('sN').checked=false;document.getElementById('sEB').checked=true;document.getElementById('sL').checked=true; }
+      P.v0=parseFloat(document.getElementById('v0').value); P.h=parseFloat(document.getElementById('h').value);
+      P.T=parseFloat(document.getElementById('T').value);
+      if(c!=='b2'){ P.eX=parseFloat(document.getElementById('eX').value); P.eY=parseFloat(document.getElementById('eY').value); }
+      P.rX=parseFloat(document.getElementById('rX').value); P.rY=parseFloat(document.getElementById('rY').value);
+      enab(); update();
+    });
+  });
+  enab(); update();
+})();
+</script>
+</body>
+</html>
