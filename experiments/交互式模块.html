@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交互式模块</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 130px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #1565c0; }
+  button { padding: 6px 16px; border: none; border-radius: 6px; background: #1565c0; color: #fff; cursor: pointer; font-size: 14px; }
+  button:hover { background: #0d47a1; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>交互式模块 · 函数绘图</h1>
+  <p class="desc">动态绘制 y = sin(a·x)，调节系数 a 并可自动动画播放。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="a">系数 a</label>
+      <input type="range" id="a" min="1" max="5" step="0.1" value="1">
+      <span class="val" id="av">1.0</span>
+    </div>
+    <div class="ctrl">
+      <button id="play">▶ 播放动画</button>
+    </div>
+  </div>
+  <canvas id="cv" width="860" height="360"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height, a = 1;
+  var xMin = 0, xMax = 2*Math.PI, yMin = -1.5, yMax = 1.5;
+  function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+  function sy(y){ return H - (y-yMin)/(yMax-yMin)*H; }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='#e8e8e8'; ctx.lineWidth=1;
+    for(var gx=0; gx<=6; gx++){ var x=xMin+gx*(xMax-xMin)/6; ctx.beginPath(); ctx.moveTo(sx(x),0); ctx.lineTo(sx(x),H); ctx.stroke(); }
+    ctx.strokeStyle='#888'; ctx.beginPath(); ctx.moveTo(0,sy(0)); ctx.lineTo(W,sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(0),0); ctx.lineTo(sx(0),H); ctx.stroke();
+    ctx.fillStyle='#666'; ctx.font='13px sans-serif';
+    for(var i=0;i<=4;i++){ var xv=i*Math.PI/2; ctx.fillText((i===0?'0':(i===4?'2π':i/2+'π')), sx(xv)-8, sy(0)+16); }
+    ctx.strokeStyle='#1565c0'; ctx.lineWidth=2.5; ctx.beginPath();
+    for(var px=0; px<=W; px++){ var x=xMin+(px/W)*(xMax-xMin); var y=Math.sin(a*x); if(px===0) ctx.moveTo(sx(x),sy(y)); else ctx.lineTo(sx(x),sy(y)); }
+    ctx.stroke();
+    ctx.fillStyle='#1565c0'; ctx.font='15px sans-serif';
+    ctx.fillText('y = sin('+a.toFixed(1)+' x)', 16, 28);
+  }
+  var el=document.getElementById('a'), out=document.getElementById('av');
+  el.addEventListener('input', function(){ a=parseFloat(el.value); out.textContent=a.toFixed(1); draw(); });
+  var playing=false, raf;
+  function loop(){
+    a += 0.01; if(a>5) a=1;
+    el.value=a; out.textContent=a.toFixed(1); draw();
+    if(playing) raf=requestAnimationFrame(loop);
+  }
+  var btn=document.getElementById('play');
+  btn.addEventListener('click', function(){
+    playing=!playing; btn.textContent = playing?'⏸ 暂停':'▶ 播放动画';
+    if(playing) loop(); else cancelAnimationFrame(raf);
+  });
+  draw();
+})();
+</script>
+</body>
+</html>
