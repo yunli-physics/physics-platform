@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>力的合成</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 14px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 130px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: #1565c0; }
+  .btns { margin-top: 10px; display:flex; gap:8px; flex-wrap:wrap; }
+  button { padding: 6px 14px; border: none; border-radius: 6px; background: #1565c0; color: #fff; cursor: pointer; font-size: 13px; }
+  button.gray { background: #777; }
+  button:hover { filter: brightness(1.1); }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>力的合成（矢量叠加）</h1>
+  <p class="desc">设定力的大小与方向，点击"添加力"加入一个分力；自动用矢量加法求合力 R（红色）。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label>力的大小</label>
+      <input type="range" id="mag" min="1" max="200" step="1" value="50">
+      <span class="val" id="magv">50</span>
+    </div>
+    <div class="ctrl">
+      <label>力的方向 (度)</label>
+      <input type="range" id="ang" min="0" max="360" step="1" value="0">
+      <span class="val" id="angv">0°</span>
+    </div>
+    <div class="btns">
+      <button id="add">＋ 添加力</button>
+      <button id="clear" class="gray">清空所有力</button>
+      <button id="ex1">示例1: 两垂直力</button>
+      <button id="ex2">示例2: 三力平衡</button>
+    </div>
+  </div>
+  <canvas id="cv" width="800" height="600"></canvas>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+  var W=cv.width,H=cv.height, range=150;
+  var forces=[]; // [mag, angleDeg]
+  var cx=W/2, cy=H/2;
+  function sx(x){ return cx + x; }   // x in world units ~ pixels at scale 1
+  function sy(y){ return cy - y; }
+  function arrow(x1,y1,x2,y2,color,lw){
+    var ang=Math.atan2(y2-y1,x2-x1);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw;
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.stroke();
+    var h=9;
+    ctx.beginPath();
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2-h*Math.cos(ang-0.4)),sy(y2-h*Math.sin(ang-0.4)));
+    ctx.lineTo(sx(x2-h*Math.cos(ang+0.4)),sy(y2-h*Math.sin(ang+0.4)));
+    ctx.closePath(); ctx.fill();
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // axes dashed
+    ctx.strokeStyle='#bbb'; ctx.setLineDash([5,5]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#333'; ctx.font='13px sans-serif';
+    ctx.fillText('x', W-14, cy-6); ctx.fillText('y', cx+6, 14);
+    // resultant
+    var rx=0, ry=0;
+    forces.forEach(function(f){ var r=f[0]*Math.PI/180; rx+=f[1]*Math.cos(r); ry+=f[1]*Math.sin(r); });
+    // forces blue
+    forces.forEach(function(f,i){
+      var r=f[1]*Math.PI/180, ex=f[0]*Math.cos(r), ey=f[0]*Math.sin(r);
+      arrow(0,0,ex,ey,'#1565c0',2);
+      ctx.fillStyle='#1565c0'; ctx.font='13px sans-serif';
+      ctx.fillText('F'+(i+1), sx(ex/2)+6, sy(ey/2)-6);
+    });
+    // resultant red
+    var mag=Math.hypot(rx,ry);
+    if(forces.length>0 && mag>0.1){
+      arrow(0,0,rx,ry,'#e53935',3);
+      ctx.fillStyle='#e53935'; ctx.font='bold 15px sans-serif';
+      ctx.fillText('R (合力)', sx(rx/2)+8, sy(ry/2)-8);
+      var dir=Math.atan2(ry,rx)*180/Math.PI; if(dir<0)dir+=360;
+      ctx.fillStyle='#000'; ctx.font='14px sans-serif';
+      ctx.fillText('合力大小: '+mag.toFixed(1), 20, 30);
+      ctx.fillText('合力方向: '+dir.toFixed(1)+'°', 20, 54);
+    } else {
+      ctx.fillStyle='#e53935'; ctx.font='16px sans-serif';
+      ctx.fillText('请添加力向量', cx-60, cy-40);
+    }
+    // origin
+    ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(cx,cy,3.5,0,2*Math.PI); ctx.fill();
+  }
+  var magEl=document.getElementById('mag'), angEl=document.getElementById('ang');
+  var magV=document.getElementById('magv'), angV=document.getElementById('angv');
+  function upd(){ magV.textContent=magEl.value; angV.textContent=angEl.value+'°'; }
+  magEl.addEventListener('input',upd); angEl.addEventListener('input',upd);
+  document.getElementById('add').addEventListener('click', function(){
+    forces.push([parseFloat(magEl.value), parseFloat(angEl.value)]);
+    magEl.value=50; angEl.value=0; upd(); draw();
+  });
+  document.getElementById('clear').addEventListener('click', function(){ forces=[]; draw(); });
+  document.getElementById('ex1').addEventListener('click', function(){ forces=[[60,0],[80,90]]; draw(); });
+  document.getElementById('ex2').addEventListener('click', function(){ forces=[[50,0],[50,120],[50,240]]; draw(); });
+  upd(); draw();
+})();
+</script>
+</body>
+</html>

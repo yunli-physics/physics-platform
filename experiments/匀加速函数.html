@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>匀加速函数</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .btns { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+  .btns button { padding: 8px 16px; font-size: 14px; border: 1px solid #ccc;
+                 border-radius: 6px; background: #fff; cursor: pointer; }
+  .btns button:hover { background: #f0f0f0; }
+  .status { font-weight: bold; margin-left: 10px; font-size: 14px; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; margin-bottom: 12px; }
+  .charts { display: flex; gap: 12px; flex-wrap: wrap; }
+  .charts .box { flex: 1; min-width: 320px; }
+  .charts canvas { margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>匀加速直线运动与函数图像</h1>
+  <p class="desc">真实物理匀加速直线运动动画，同步显示 v-t 图与 x-t 图，并标注当前时刻的坐标点。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="v0">初速度 v₀ (m/s)</label>
+      <input type="range" id="v0" min="-15" max="15" step="0.1" value="0">
+      <span class="val" id="v0v">0.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="a">加速度 a (m/s²)</label>
+      <input type="range" id="a" min="-8" max="8" step="0.1" value="2">
+      <span class="val" id="av">2.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="rate">动画速度</label>
+      <input type="range" id="rate" min="0.01" max="0.5" step="0.01" value="0.1">
+      <span class="val" id="ratev">0.10</span>
+    </div>
+    <div class="btns">
+      <button id="btnPlay">▶ 播放</button>
+      <button id="btnReset">↺ 重置</button>
+      <button id="btnBack">⏪ 快退</button>
+      <button id="btnFwd">⏩ 快进</button>
+      <span class="status" id="statusTxt">状态: 已暂停</span>
+    </div>
+  </div>
+  <canvas id="cvMain" width="850" height="250"></canvas>
+  <div class="charts">
+    <div class="box"><canvas id="cvV" width="500" height="300"></canvas></div>
+    <div class="box"><canvas id="cvX" width="500" height="300"></canvas></div>
+  </div>
+</div>
+<script>
+(function(){
+  var cvM=document.getElementById('cvMain'),ctxM=cvM.getContext('2d');
+  var cvV=document.getElementById('cvV'),ctxV=cvV.getContext('2d');
+  var cvX=document.getElementById('cvX'),ctxX=cvX.getContext('2d');
+  var WM=cvM.width,HM=cvM.height,WV=cvV.width,HV=cvV.height,WX=cvX.width,HX=cvX.height;
+  var v0=0,a=2,animationRate=0.1,t=0,tmax=10,x0=0;
+  var isPlaying=false,lastTs=null;
+  function mX(wx){return (wx+420)/840*WM;}
+  function mY(wy){return HM-(wy+130)/230*HM;}
+  function gX(wx){return (wx+270)/520*WV;}
+  function gY(wy){return HV-(wy+150)/310*HV;}
+  function physics(){
+    var x=x0+v0*t+0.5*a*t*t, v=v0+a*t;
+    var xAtMaxT=x0+v0*tmax+0.5*a*tmax*tmax, xAtZC=x0;
+    if(Math.abs(a)>0.0001){
+      var tZ=-v0/a;
+      if(tZ>=0&&tZ<=tmax) xAtZC=x0+v0*tZ+0.5*a*tZ*tZ;
+    }
+    var mx=10;
+    [x0,xAtMaxT,xAtZC].forEach(function(q){if(isFinite(q))mx=Math.max(mx,Math.abs(q));});
+    var xmax=Math.max(10,mx), scale=300/Math.max(xmax,10);
+    return {x:x,v:v,scale:scale,pos:x*scale};
+  }
+  function drawMain(){
+    var P=physics();
+    ctxM.clearRect(0,0,WM,HM);
+    ctxM.strokeStyle='#000';ctxM.lineWidth=1.5;
+    ctxM.beginPath();ctxM.moveTo(mX(-400),mY(0));ctxM.lineTo(mX(400),mY(0));ctxM.stroke();
+    ctxM.font='12px sans-serif';ctxM.textAlign='center';
+    for(var i=-10;i<=10;i++){
+      var xp=i*35;
+      if(i!==0){
+        ctxM.strokeStyle='#000';
+        ctxM.beginPath();ctxM.moveTo(mX(xp),mY(-5));ctxM.lineTo(mX(xp),mY(5));ctxM.stroke();
+        ctxM.fillStyle='#000';ctxM.fillText(i,mX(xp),mY(-15));
+      } else {
+        ctxM.beginPath();ctxM.moveTo(mX(xp),mY(-8));ctxM.lineTo(mX(xp),mY(8));ctxM.stroke();
+        ctxM.fillStyle='#000';ctxM.font='bold 12px sans-serif';
+        ctxM.fillText('0',mX(xp),mY(-20));ctxM.font='12px sans-serif';
+      }
+    }
+    if(t>0.01){
+      ctxM.strokeStyle='#ccc';ctxM.lineWidth=1.5;ctxM.setLineDash([5,4]);
+      ctxM.beginPath();var step=Math.max(t/50,0.05),started=false;
+      for(var ti=0;ti<=Math.min(t,tmax);ti+=step){
+        var xi=x0+v0*ti+0.5*a*ti*ti, sxi=Math.max(-350,Math.min(350,xi*P.scale));
+        if(!started){ctxM.moveTo(mX(sxi),mY(0));started=true;} else ctxM.lineTo(mX(sxi),mY(0));
+      }
+      ctxM.stroke();ctxM.setLineDash([]);
+    }
+    var posC=Math.max(-350,Math.min(350,P.pos));
+    ctxM.fillStyle='red';ctxM.strokeStyle='#000';ctxM.lineWidth=1.5;
+    ctxM.beginPath();ctxM.arc(mX(posC),mY(0),12*(WM/850),0,2*Math.PI);ctxM.fill();ctxM.stroke();
+    if(Math.abs(P.v)>0.01){
+      var vlen=Math.min(Math.abs(P.v)*3,40);
+      var endX=Math.max(-350,Math.min(350,posC+Math.sign(P.v)*vlen));
+      ctxM.strokeStyle='#1565c0';ctxM.fillStyle='#1565c0';ctxM.lineWidth=2;
+      ctxM.beginPath();ctxM.moveTo(mX(posC),mY(15));ctxM.lineTo(mX(endX),mY(15));ctxM.stroke();
+      var ang=Math.atan2(0,mX(endX)-mX(posC));
+      ctxM.beginPath();ctxM.moveTo(mX(endX),mY(15));
+      ctxM.lineTo(mX(endX)-7*Math.cos(ang-0.4),mY(15)-7*Math.sin(ang-0.4));
+      ctxM.lineTo(mX(endX)-7*Math.cos(ang+0.4),mY(15)-7*Math.sin(ang+0.4));
+      ctxM.closePath();ctxM.fill();
+      ctxM.font='12px sans-serif';ctxM.textAlign='center';
+      ctxM.fillText('v='+P.v.toFixed(2),mX((posC+endX)/2),mY(25));
+    }
+    ctxM.fillStyle='#000';ctxM.textAlign='center';
+    ctxM.font='bold 18px "Microsoft YaHei",sans-serif';
+    ctxM.fillText('真实物理匀加速直线运动 (x₀=0)',mX(0),mY(80));
+    ctxM.font='14px "Microsoft YaHei",sans-serif';ctxM.textAlign='left';
+    ctxM.fillText('位置: x = '+P.x.toFixed(2)+' m',mX(-350),mY(-50));
+    ctxM.fillText('速度: v = '+P.v.toFixed(2)+' m/s',mX(-350),mY(-70));
+    ctxM.fillText('时间: t = '+t.toFixed(2)+' s',mX(-350),mY(-90));
+    ctxM.font='12px "Microsoft YaHei",sans-serif';
+    ctxM.fillText('v₀='+v0.toFixed(2)+'m/s, a='+a.toFixed(2)+'m/s²',mX(200),mY(-50));
+    ctxM.fillText('物理公式: x=x₀+v₀t+½at², v=v₀+at',mX(0),mY(-120));
+  }
+  function yStepFor(r){return r<=5?1:r<=10?2:r<=20?5:10;}
+  function drawV(){
+    ctxV.clearRect(0,0,WV,HV);
+    var maxV=Math.max(v0,v0+a*tmax),minV=Math.min(v0,v0+a*tmax);
+    if(a===0){maxV=v0;minV=v0;}
+    var vRange=Math.max(1,Math.abs(maxV-minV)),vScale=100/vRange,tScale=200/tmax;
+    var zeroYPos=(0-minV)*vScale-120;
+    ctxV.strokeStyle='#000';ctxV.lineWidth=1.5;
+    ctxV.beginPath();ctxV.moveTo(gX(-220),gY(-120));ctxV.lineTo(gX(-220),gY(120));ctxV.stroke();
+    ctxV.beginPath();ctxV.moveTo(gX(-220),gY(zeroYPos));ctxV.lineTo(gX(220),gY(zeroYPos));ctxV.stroke();
+    ctxV.font='12px sans-serif';ctxV.textAlign='center';
+    var tStep=tmax<=5?1:2;
+    for(var ti=0;ti<=tmax;ti+=tStep){
+      ctxV.strokeStyle='#000';
+      ctxV.beginPath();ctxV.moveTo(gX(-220+ti*tScale),gY(zeroYPos-5));ctxV.lineTo(gX(-220+ti*tScale),gY(zeroYPos+5));ctxV.stroke();
+      ctxV.fillStyle='#000';ctxV.fillText(ti,gX(-220+ti*tScale),gY(zeroYPos-15));
+    }
+    var step=yStepFor(vRange);ctxV.textAlign='right';
+    for(var vi=Math.ceil(minV/step)*step;vi<=maxV;vi+=step){
+      var yp=(vi-minV)*vScale-120;
+      ctxV.strokeStyle='#000';
+      ctxV.beginPath();ctxV.moveTo(gX(-225),gY(yp));ctxV.lineTo(gX(-215),gY(yp));ctxV.stroke();
+      ctxV.fillStyle='#000';ctxV.fillText(vi,gX(-260),gY(yp)+4);
+    }
+    ctxV.strokeStyle='#1565c0';ctxV.lineWidth=2.5;ctxV.beginPath();var st=false;
+    for(var tt=0;tt<=tmax;tt+=0.1){
+      var vv=v0+a*tt,yy=(vv-minV)*vScale-120,xx=-220+tt*tScale;
+      if(!st){ctxV.moveTo(gX(xx),gY(yy));st=true;}else ctxV.lineTo(gX(xx),gY(yy));
+    }
+    ctxV.stroke();
+    var cpx=-220+t*tScale,cpy=(v0+a*t-minV)*vScale-120;
+    ctxV.fillStyle='red';ctxV.beginPath();ctxV.arc(gX(cpx),gY(cpy),6,0,2*Math.PI);ctxV.fill();
+    ctxV.fillStyle='#000';ctxV.font='bold 12px sans-serif';ctxV.textAlign='left';
+    ctxV.fillText('('+t.toFixed(2)+','+(v0+a*t).toFixed(2)+')',gX(cpx)+8,gY(cpy)-8);
+    ctxV.strokeStyle='#999';ctxV.setLineDash([5,4]);
+    ctxV.beginPath();ctxV.moveTo(gX(cpx),gY(cpy));ctxV.lineTo(gX(cpx),gY(zeroYPos));ctxV.stroke();
+    ctxV.beginPath();ctxV.moveTo(gX(cpx),gY(cpy));ctxV.lineTo(gX(-220),gY(cpy));ctxV.stroke();
+    ctxV.setLineDash([]);
+    ctxV.fillStyle='#000';ctxV.font='bold 14px "Microsoft YaHei",sans-serif';ctxV.textAlign='center';
+    ctxV.fillText('速度-时间函数 v-t 图',gX(0),gY(140));
+  }
+  function drawX(){
+    ctxX.clearRect(0,0,WX,HX);
+    var xEnd=x0+v0*tmax+0.5*a*tmax*tmax;
+    var maxX=Math.max(x0,xEnd),minX=Math.min(x0,xEnd);
+    if(Math.abs(a)>0.0001){
+      var tE=-v0/a;
+      if(tE>=0&&tE<=tmax){var xE=x0+v0*tE+0.5*a*tE*tE;maxX=Math.max(maxX,xE);minX=Math.min(minX,xE);}
+    }
+    var xRange=Math.max(1,Math.abs(maxX-minX)),xScale=100/xRange,tScale=200/tmax;
+    var zeroYPos=(0-minX)*xScale-120;
+    ctxX.strokeStyle='#000';ctxX.lineWidth=1.5;
+    ctxX.beginPath();ctxX.moveTo(gX(-220),gY(-120));ctxX.lineTo(gX(-220),gY(120));ctxX.stroke();
+    ctxX.beginPath();ctxX.moveTo(gX(-220),gY(zeroYPos));ctxX.lineTo(gX(220),gY(zeroYPos));ctxX.stroke();
+    ctxX.font='12px sans-serif';ctxX.textAlign='center';
+    var tStep=tmax<=5?1:2;
+    for(var ti=0;ti<=tmax;ti+=tStep){
+      ctxX.strokeStyle='#000';
+      ctxX.beginPath();ctxX.moveTo(gX(-220+ti*tScale),gY(zeroYPos-5));ctxX.lineTo(gX(-220+ti*tScale),gY(zeroYPos+5));ctxX.stroke();
+      ctxX.fillStyle='#000';ctxX.fillText(ti,gX(-220+ti*tScale),gY(zeroYPos-15));
+    }
+    var step=yStepFor(xRange);ctxX.textAlign='right';
+    for(var xi=Math.ceil(minX/step)*step;xi<=maxX;xi+=step){
+      var yp=(xi-minX)*xScale-120;
+      ctxX.strokeStyle='#000';
+      ctxX.beginPath();ctxX.moveTo(gX(-225),gY(yp));ctxX.lineTo(gX(-215),gY(yp));ctxX.stroke();
+      ctxX.fillStyle='#000';ctxX.fillText(xi.toFixed(1),gX(-260),gY(yp)+4);
+    }
+    ctxX.strokeStyle='red';ctxX.lineWidth=2.5;ctxX.beginPath();var st=false;
+    for(var tt=0;tt<=tmax;tt+=0.1){
+      var xx2=x0+v0*tt+0.5*a*tt*tt,yy=(xx2-minX)*xScale-120,px=-220+tt*tScale;
+      if(!st){ctxX.moveTo(gX(px),gY(yy));st=true;}else ctxX.lineTo(gX(px),gY(yy));
+    }
+    ctxX.stroke();
+    var cpx=-220+t*tScale,curX=x0+v0*t+0.5*a*t*t,cpy=(curX-minX)*xScale-120;
+    ctxX.fillStyle='#1565c0';ctxX.beginPath();ctxX.arc(gX(cpx),gY(cpy),6,0,2*Math.PI);ctxX.fill();
+    ctxX.fillStyle='#000';ctxX.font='bold 12px sans-serif';ctxX.textAlign='left';
+    ctxX.fillText('('+t.toFixed(2)+','+curX.toFixed(2)+')',gX(cpx)+8,gY(cpy)-8);
+    ctxX.strokeStyle='#999';ctxX.setLineDash([5,4]);
+    ctxX.beginPath();ctxX.moveTo(gX(cpx),gY(cpy));ctxX.lineTo(gX(cpx),gY(zeroYPos));ctxX.stroke();
+    ctxX.beginPath();ctxX.moveTo(gX(cpx),gY(cpy));ctxX.lineTo(gX(-220),gY(cpy));ctxX.stroke();
+    ctxX.setLineDash([]);
+    ctxX.fillStyle='#000';ctxX.font='bold 14px "Microsoft YaHei",sans-serif';ctxX.textAlign='center';
+    ctxX.fillText('位移-时间函数 x-t 图',gX(0),gY(140));
+  }
+  function setStatus(){
+    var el=document.getElementById('statusTxt');
+    if(isPlaying){el.textContent='状态: 运行中';el.style.color='green';}
+    else{el.textContent='状态: 已暂停';el.style.color='red';}
+    document.getElementById('btnPlay').textContent=isPlaying?'⏸ 暂停':'▶ 播放';
+  }
+  function drawAll(){drawMain();drawV();drawX();setStatus();}
+  function loop(ts){
+    if(isPlaying){
+      if(lastTs===null)lastTs=ts;
+      var dt=(ts-lastTs)/1000;lastTs=ts;
+      t+=dt*2*animationRate;
+      if(t>=tmax){t=tmax;isPlaying=false;}
+    }
+    drawAll();requestAnimationFrame(loop);
+  }
+  var v0El=document.getElementById('v0'),aEl=document.getElementById('a'),rEl=document.getElementById('rate');
+  v0El.addEventListener('input',function(){v0=+v0El.value;document.getElementById('v0v').textContent=v0.toFixed(1);drawAll();});
+  aEl.addEventListener('input',function(){a=+aEl.value;document.getElementById('av').textContent=a.toFixed(1);drawAll();});
+  rEl.addEventListener('input',function(){animationRate=+rEl.value;document.getElementById('ratev').textContent=animationRate.toFixed(2);});
+  document.getElementById('btnPlay').addEventListener('click',function(){
+    if(t>=tmax)t=0;isPlaying=!isPlaying;lastTs=null;drawAll();
+  });
+  document.getElementById('btnReset').addEventListener('click',function(){isPlaying=false;t=0;drawAll();});
+  document.getElementById('btnBack').addEventListener('click',function(){t=Math.max(0,t-0.5);isPlaying=false;drawAll();});
+  document.getElementById('btnFwd').addEventListener('click',function(){t=Math.min(tmax,t+0.5);isPlaying=false;drawAll();});
+  drawAll();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

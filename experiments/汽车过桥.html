@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汽车过桥</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 130px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .btns { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+  .btns button { padding: 8px 18px; font-size: 14px; border: 1px solid #ccc;
+                 border-radius: 6px; background: #fff; cursor: pointer; }
+  .btns button.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>汽车过拱形桥</h1>
+  <p class="desc">汽车通过凸形桥最高点或凹形桥最低点，分析重力、支持力与向心力的关系。</p>
+  <div class="panel">
+    <div class="btns">
+      <label style="font-size:14px;">桥型：</label>
+      <button id="b1" class="active">凸形桥</button>
+      <button id="b2">凹形桥</button>
+    </div>
+    <div class="ctrl">
+      <label for="r">半径 r (m)</label>
+      <input type="range" id="r" min="5" max="50" step="1" value="10">
+      <span class="val" id="rv">10</span>
+    </div>
+    <div class="ctrl">
+      <label for="v">速度 v (m/s)</label>
+      <input type="range" id="v" min="0" max="30" step="0.5" value="8">
+      <span class="val" id="vv">8.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="m">质量 m (kg)</label>
+      <input type="range" id="m" min="500" max="5000" step="100" value="1000">
+      <span class="val" id="mv">1000</span>
+    </div>
+    <div class="btns">
+      <button id="btnReset">重置</button>
+    </div>
+  </div>
+  <canvas id="cv" width="700" height="700"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var g = 9.8;
+  var bridgeType = 1, r = 10, v = 8, m = 1000;
+
+  // PlotRange 1.5*r -> [-1.5r, 1.5r]
+  function makeMapper(){
+    var lim = 1.5*r;
+    var cx = W/2, cy = H/2;
+    var scale = Math.min(W,H)/(2*lim);
+    return function(x, y){
+      return [cx + x*scale, cy - y*scale];
+    };
+  }
+
+  function arrow(x1,y1,x2,y2,color,lw){
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw||2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var ang = Math.atan2(y2-y1, x2-x1);
+    var hs = 8;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-hs*Math.cos(ang-0.4), y2-hs*Math.sin(ang-0.4));
+    ctx.lineTo(x2-hs*Math.cos(ang+0.4), y2-hs*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function draw(){
+    var P = makeMapper();
+    ctx.clearRect(0,0,W,H);
+    var aN = v*v/r;
+    var FN, Fnet, carPos;
+    if(bridgeType===1){
+      FN = m*(g-aN);
+      Fnet = -m*aN;
+      carPos = [0, r];
+    } else {
+      FN = m*(g+aN);
+      Fnet = m*aN;
+      carPos = [0, -r];
+    }
+    var maxForce = Math.max(m*g, Math.abs(FN), m*aN);
+    var forceScale = 0.4*r/maxForce;
+
+    // 桥面弧
+    var center = P(0,0);
+    var rPx = r * (Math.min(W,H)/(2*1.5*r));
+    ctx.strokeStyle='#888'; ctx.lineWidth=8;
+    ctx.beginPath();
+    if(bridgeType===1){
+      ctx.arc(center[0], center[1], rPx, Math.PI, 0, true);
+    } else {
+      ctx.arc(center[0], center[1], rPx, 0, Math.PI, false);
+    }
+    ctx.stroke();
+    // 白色虚线弧
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+    ctx.beginPath();
+    if(bridgeType===1) ctx.arc(center[0], center[1], rPx, Math.PI, 0, true);
+    else ctx.arc(center[0], center[1], rPx, 0, Math.PI, false);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 汽车矩形 carPos ± {0.2r, 0.1r}
+    var cp = P(carPos[0], carPos[1]);
+    var hw = 0.2*r * (Math.min(W,H)/(2*1.5*r));
+    var hh = 0.1*r * (Math.min(W,H)/(2*1.5*r));
+    ctx.fillStyle='red';
+    ctx.fillRect(cp[0]-hw, cp[1]-hh, 2*hw, 2*hh);
+    ctx.fillStyle='#fff'; ctx.font='14px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('车', cp[0], cp[1]);
+
+    // 重力 mg 向下
+    var mgEnd = P(carPos[0], carPos[1] - m*g*forceScale);
+    arrow(cp[0], cp[1], mgEnd[0], mgEnd[1], '#1565c0', 2);
+    ctx.fillStyle='#1565c0'; ctx.font='12px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('mg', mgEnd[0]+4, (cp[1]+mgEnd[1])/2);
+
+    // 支持力 FN
+    var fnEnd = P(carPos[0], carPos[1] + FN*forceScale);
+    var fnColor = FN>0 ? '#2e7d32' : '#e53935';
+    arrow(cp[0], cp[1], fnEnd[0], fnEnd[1], fnColor, 2);
+    ctx.fillStyle=fnColor; ctx.textAlign='left';
+    ctx.fillText('FN', fnEnd[0]+4, (cp[1]+fnEnd[1])/2);
+
+    // 合力 F合 虚线紫
+    ctx.setLineDash([6,4]);
+    var fnetEnd = P(carPos[0], carPos[1] + Fnet*forceScale);
+    arrow(cp[0], cp[1], fnetEnd[0], fnetEnd[1], '#7b1fa2', 3);
+    ctx.setLineDash([]);
+    ctx.fillStyle='#7b1fa2'; ctx.textAlign='left';
+    ctx.fillText('F合', fnetEnd[0]+4, (cp[1]+fnetEnd[1])/2);
+
+    // 圆心
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.arc(center[0], center[1], 4, 0, 2*Math.PI); ctx.fill();
+    ctx.fillText('O', center[0]+10, center[1]-8);
+
+    // 信息面板
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#ccc';
+    var panelX = W*0.62, panelY = H*0.10, pw = 240, ph = 130;
+    ctx.fillRect(panelX, panelY, pw, ph);
+    ctx.strokeRect(panelX, panelY, pw, ph);
+    ctx.fillStyle='#000'; ctx.font='12px "Microsoft YaHei", sans-serif'; ctx.textAlign='left';
+    var lines = [];
+    lines.push('桥型: ' + (bridgeType===1?'凸形桥 (最高点)':'凹形桥 (最低点)'));
+    lines.push('v = ' + v.toFixed(2) + ' m/s');
+    lines.push('FN = ' + FN.toFixed(2) + ' N');
+    if(bridgeType===1){
+      var v0 = Math.sqrt(g*r);
+      lines.push('临界速度 v0 = ' + v0.toFixed(2) + ' m/s');
+      if(FN<0) lines.push(['脱离桥面!','red']);
+      else lines.push(['失重 (FN < mg)','#000']);
+    } else {
+      lines.push(['超重 (FN > mg)','#000']);
+    }
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      if(typeof ln === 'string') ctx.fillStyle='#000';
+      else { ctx.fillStyle=ln[1]; ln=ln[0]; }
+      ctx.fillText(ln, panelX+10, panelY+20+i*20);
+    }
+  }
+
+  // 控件
+  var rEl=document.getElementById('r'), vEl=document.getElementById('v'), mEl=document.getElementById('m');
+  rEl.addEventListener('input', function(){ r=+rEl.value; document.getElementById('rv').textContent=r; draw(); });
+  vEl.addEventListener('input', function(){ v=+vEl.value; document.getElementById('vv').textContent=v.toFixed(1); draw(); });
+  mEl.addEventListener('input', function(){ m=+mEl.value; document.getElementById('mv').textContent=m; draw(); });
+  document.getElementById('b1').addEventListener('click', function(){ bridgeType=1; this.classList.add('active'); document.getElementById('b2').classList.remove('active'); draw(); });
+  document.getElementById('b2').addEventListener('click', function(){ bridgeType=2; this.classList.add('active'); document.getElementById('b1').classList.remove('active'); draw(); });
+  document.getElementById('btnReset').addEventListener('click', function(){
+    r=10; v=8; m=1000; bridgeType=1;
+    rEl.value=r; vEl.value=v; mEl.value=m;
+    document.getElementById('rv').textContent=r;
+    document.getElementById('vv').textContent=v.toFixed(1);
+    document.getElementById('mv').textContent=m;
+    document.getElementById('b1').classList.add('active');
+    document.getElementById('b2').classList.remove('active');
+    draw();
+  });
+  draw();
+})();
+</script>
+</body>
+</html>

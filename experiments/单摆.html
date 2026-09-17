@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单摆</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 12px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  button { padding: 6px 18px; border: none; border-radius: 6px; background: #1565c0; color: #fff; cursor: pointer; font-size: 14px; }
+  button:hover { background: #0d47a1; }
+  .row { display:flex; gap:12px; }
+  canvas { background:#fff; border:1px solid #e0e0e0; border-radius:8px; display:block; width:100%; }
+  .legend { font-size:13px; color:#555; }
+  .legend span{ display:inline-block; width:12px; height:3px; vertical-align:middle; margin:0 4px 2px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>单摆（大角度非线性对比）</h1>
+  <p class="desc">两个单摆摆长相同(g=9.8, L=1.5)，以不同初速度释放，对比它们的摆动与水平位移曲线。</p>
+  <div class="panel">
+    <button id="play">▶ 播放</button>
+    <button id="reset" style="background:#666;">重置</button>
+    <span class="legend"><span style="background:#e53935"></span>摆1 (v₀=1/L)</span>
+    <span class="legend"><span style="background:#43a047"></span>摆2 (v₀=3/L)</span>
+    <span style="color:#888;font-size:13px;">t 从 0 到 20 s</span>
+  </div>
+  <div class="row">
+    <canvas id="pend" width="470" height="400"></canvas>
+    <canvas id="disp" width="470" height="400"></canvas>
+  </div>
+</div>
+<script>
+(function(){
+  var g=9.8, L=1.5, Om=Math.sqrt(g/L);
+  var v01=1, w01=v01/L, v02=3, w02=v02/L;
+  var tMax=20, t=0;
+  // RK4 integrate pendulum: state [theta, omega], theta''=-Om^2 sin(theta)
+  function deriv(s){ return [s[1], -Om*Om*Math.sin(s[0])]; }
+  function rk4(s, dt){
+    var k1=deriv(s);
+    var s2=[s[0]+k1[0]*dt/2, s[1]+k1[1]*dt/2];
+    var k2=deriv(s2);
+    var s3=[s[0]+k2[0]*dt/2, s[1]+k2[1]*dt/2];
+    var k3=deriv(s3);
+    var s4=[s[0]+k1[0]*dt, s[1]+k1[1]*dt];
+    // fix: use k3
+    var s4b=[s[0]+k3[0]*dt, s[1]+k3[1]*dt];
+    var k4=deriv(s4b);
+    return [s[0]+(k1[0]+2*k2[0]+2*k3[0]+k4[0])*dt/6,
+            s[1]+(k1[1]+2*k2[1]+2*k3[1]+k4[1])*dt/6];
+  }
+  // precompute trajectories
+  var N=400, dt=tMax/N;
+  var th1=[0], th2=[0], times=[0];
+  var s1=[0,w01], s2=[0,w02];
+  for(var i=1;i<=N;i++){ s1=rk4(s1,dt); s2=rk4(s2,dt); th1.push(s1[0]); th2.push(s2[0]); times.push(i*dt); }
+  var idx=0;
+
+  var pc=document.getElementById('pend'), pctx=pc.getContext('2d');
+  var dc=document.getElementById('disp'), dctx=dc.getContext('2d');
+
+  function drawPendulum(){
+    var W=pc.width,H=pc.height; pctx.clearRect(0,0,W,H);
+    var ox=W/2, oy=40, sc=Math.min(W,H)*0.55/L; // pixels per length
+    // vertical dashed reference
+    pctx.strokeStyle='#bbb'; pctx.setLineDash([4,4]); pctx.lineWidth=1;
+    pctx.beginPath(); pctx.moveTo(ox,oy); pctx.lineTo(ox,oy+L*sc); pctx.stroke();
+    pctx.setLineDash([]);
+    function ball(th,color){
+      var bx=ox+L*sc*Math.sin(th), by=oy+L*sc*Math.cos(th);
+      pctx.strokeStyle=color; pctx.lineWidth=3;
+      pctx.beginPath(); pctx.moveTo(ox,oy); pctx.lineTo(bx,by); pctx.stroke();
+      pctx.fillStyle=color; pctx.beginPath(); pctx.arc(bx,by,L*sc/20+3,0,2*Math.PI); pctx.fill();
+    }
+    ball(th1[idx],'#e53935');
+    ball(th2[idx],'#43a047');
+    // pivot
+    pctx.fillStyle='#333'; pctx.beginPath(); pctx.arc(ox,oy,4,0,2*Math.PI); pctx.fill();
+  }
+  function drawDisp(){
+    var W=dc.width,H=dc.height; dctx.clearRect(0,0,W,H);
+    var xMin=0,xMax=20,yMin=-1.5,yMax=1.5;
+    function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+    function sy(y){ return H-(y-yMin)/(yMax-yMin)*H; }
+    // axes
+    dctx.strokeStyle='#ccc'; dctx.lineWidth=1;
+    dctx.beginPath(); dctx.moveTo(0,sy(0)); dctx.lineTo(W,sy(0)); dctx.stroke();
+    dctx.beginPath(); dctx.moveTo(sx(0),0); dctx.lineTo(sx(0),H); dctx.stroke();
+    dctx.fillStyle='#888'; dctx.font='12px sans-serif';
+    dctx.fillText('t', W-14, sy(0)-6);
+    dctx.fillText('x(t)', sx(0)+4, 14);
+    // curves up to current idx
+    function curve(th,color){
+      dctx.strokeStyle=color; dctx.lineWidth=2; dctx.beginPath();
+      for(var i=0;i<=idx;i++){ var x=times[i], y=L*Math.sin(th[i]); if(i===0)dctx.moveTo(sx(x),sy(y)); else dctx.lineTo(sx(x),sy(y)); }
+      dctx.stroke();
+    }
+    curve(th1,'#e53935');
+    curve(th2,'#43a047');
+    // current points
+    var tt=times[idx];
+    dctx.fillStyle='#e53935'; dctx.beginPath(); dctx.arc(sx(tt),sy(L*Math.sin(th1[idx])),4,0,2*Math.PI); dctx.fill();
+    dctx.fillStyle='#43a047'; dctx.beginPath(); dctx.arc(sx(tt),sy(L*Math.sin(th2[idx])),4,0,2*Math.PI); dctx.fill();
+    dctx.fillStyle='#333'; dctx.font='13px sans-serif';
+    dctx.fillText('t='+tt.toFixed(2)+' s', 10, 20);
+  }
+  function drawAll(){ drawPendulum(); drawDisp(); }
+  var playing=false, last=null, raf;
+  function step(ts){
+    if(!playing) return;
+    if(last==null) last=ts;
+    var dtReal=(ts-last)/1000; last=ts;
+    t += dtReal*1.8; // speed
+    if(t>=tMax){ t=tMax; idx=N; drawAll(); pause(); return; }
+    idx=Math.round(t/dt);
+    drawAll();
+    raf=requestAnimationFrame(step);
+  }
+  function play(){ playing=true; last=null; raf=requestAnimationFrame(step); btn.textContent='⏸ 暂停'; }
+  function pause(){ playing=false; cancelAnimationFrame(raf); btn.textContent='▶ 播放'; }
+  var btn=document.getElementById('play');
+  btn.addEventListener('click', function(){ if(playing) pause(); else play(); });
+  document.getElementById('reset').addEventListener('click', function(){ pause(); t=0; idx=0; drawAll(); });
+  drawAll();
+})();
+</script>
+</body>
+</html>

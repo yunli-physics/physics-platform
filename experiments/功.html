@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>功</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .readout { font-size:15px; margin-bottom:10px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+  .ctrl label { width: 140px; font-size: 14px; }
+  .ctrl input[type=range] { flex:1; min-width:180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  button.play { padding:6px 16px; border:1px solid #1565c0; background:#fff; color:#1565c0;
+                border-radius:6px; cursor:pointer; font-size:14px; }
+  button.play.active { background:#1565c0; color:#fff; }
+  canvas { width:100%; background:#fff; border:1px solid #e0e0e0; border-radius:8px; display:block; margin-bottom:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>功</h1>
+  <p class="desc">力 F=10 与位移方向夹角为 θ 时做功 W = F·s·cosθ（s=10）。调节 θ 观察力矢量方向；物体位置 t 自动从 0 运动到 10。</p>
+  <div class="panel">
+    <div class="readout" id="angline">Angle (degrees): 0　，W = 100.0 J</div>
+    <div class="ctrl">
+      <label for="theta">夹角 θ (度)</label>
+      <input type="range" id="theta" min="0" max="180" step="1" value="0">
+      <span class="val" id="thetav">0°</span>
+    </div>
+    <div class="ctrl">
+      <label>物体位置动画</label>
+      <button class="play active" id="btn">暂停</button>
+      <span style="font-size:13px;color:#888;">t 自动 0 → 10（原 AnimationRate 0.1/s）</span>
+    </div>
+  </div>
+  <canvas id="cv1" width="940" height="260"></canvas>
+  <canvas id="cv2" width="940" height="320"></canvas>
+</div>
+<script>
+(function(){
+  var F=10, s=10;
+  var thetaDegree=0, t=0;
+  var cv1=document.getElementById('cv1'), c1=cv1.getContext('2d');
+  var cv2=document.getElementById('cv2'), c2=cv2.getContext('2d');
+  var W=cv1.width, H1=cv1.height;
+
+  // 图1 PlotRange {{0,10},{-1,1}}
+  var padL=40,padR=20,padT=20,padB=34;
+  function s1x(x){ return padL+(x-0)/(10-0)*(W-padL-padR); }
+  function s1y(y){ return H1-padB - (y-(-1))/(1-(-1))*(H1-padT-padB); }
+
+  function draw1(){
+    c1.clearRect(0,0,W,H1);
+    c1.strokeStyle='#888'; c1.lineWidth=1.5;
+    c1.beginPath(); c1.moveTo(s1x(0),s1y(0)); c1.lineTo(s1x(10),s1y(0)); c1.stroke();
+    c1.beginPath(); c1.moveTo(s1x(0),s1y(-1)); c1.lineTo(s1x(0),s1y(1)); c1.stroke();
+    c1.fillStyle='#555'; c1.font='14px sans-serif';
+    c1.fillText('x', s1x(10)-8, s1y(0)-6);
+    var th=thetaDegree*Math.PI/180;
+    var tx=t, ty=0;
+    var tipX=t+F*Math.cos(th), tipY=0.3+F*Math.sin(th);
+    // disk
+    var rpx=0.3/10*(W-padL-padR);
+    c1.fillStyle='red';
+    c1.beginPath(); c1.arc(s1x(tx), s1y(ty), rpx, 0, 2*Math.PI); c1.fill();
+    // point at (t,0.3)
+    c1.beginPath(); c1.arc(s1x(t), s1y(0.3), 3, 0, 2*Math.PI); c1.fill();
+    // arrow
+    c1.strokeStyle='red'; c1.lineWidth=2.5;
+    c1.beginPath(); c1.moveTo(s1x(t), s1y(0.3)); c1.lineTo(s1x(tipX), s1y(tipY)); c1.stroke();
+    // arrowhead
+    var ax=s1x(tipX), ay=s1y(tipY), ang=Math.atan2(s1y(tipY)-s1y(0.3), s1x(tipX)-s1x(t));
+    c1.fillStyle='red';
+    c1.beginPath();
+    c1.moveTo(ax,ay);
+    c1.lineTo(ax-11*Math.cos(ang-0.4), ay-11*Math.sin(ang-0.4));
+    c1.lineTo(ax-11*Math.cos(ang+0.4), ay-11*Math.sin(ang+0.4));
+    c1.closePath(); c1.fill();
+    // F label at midpoint
+    c1.fillStyle='#222'; c1.font='italic 18px serif';
+    c1.fillText('F', s1x((t+tipX)/2)-6, s1y((0.3+tipY)/2)-6);
+  }
+
+  // 图2: W=F*s*cos(theta), theta 0..180; range All => [-100,100]
+  var W2=cv2.width, H2=cv2.height;
+  var xMin2=0, xMax2=180, yMin2=-110, yMax2=110;
+  var pL=54,pR=20,pT=18,pB=44;
+  function s2x(th){ return pL+(th-xMin2)/(xMax2-xMin2)*(W2-pL-pR); }
+  function s2y(w){ return H2-pB - (w-yMin2)/(yMax2-yMin2)*(H2-pT-pB); }
+
+  function draw2(){
+    c2.clearRect(0,0,W2,H2);
+    c2.strokeStyle='#888'; c2.lineWidth=1.5;
+    c2.beginPath(); c2.moveTo(s2x(0),s2y(0)); c2.lineTo(s2x(180),s2y(0)); c2.stroke();
+    c2.beginPath(); c2.moveTo(s2x(0),s2y(yMin2)); c2.lineTo(s2x(0),s2y(yMax2)); c2.stroke();
+    c2.fillStyle='#555'; c2.font='13px sans-serif';
+    c2.fillText('θ (degrees)', s2x(180)-80, H2-14);
+    c2.save(); c2.translate(16,(s2y(yMin2)+s2y(yMax2))/2); c2.rotate(-Math.PI/2);
+    c2.fillText('W', -8, 0); c2.restore();
+    // curve
+    c2.strokeStyle='#1565c0'; c2.lineWidth=2.5;
+    c2.beginPath();
+    for(var th=0; th<=180; th+=1){
+      var w=F*s*Math.cos(th*Math.PI/180);
+      if(th===0) c2.moveTo(s2x(th), s2y(w)); else c2.lineTo(s2x(th), s2y(w));
+    }
+    c2.stroke();
+    // current marker
+    var wc=F*s*Math.cos(thetaDegree*Math.PI/180);
+    c2.fillStyle='red';
+    c2.beginPath(); c2.arc(s2x(thetaDegree), s2y(wc), 6, 0, 2*Math.PI); c2.fill();
+  }
+
+  function drawAll(){
+    var wc=F*s*Math.cos(thetaDegree*Math.PI/180);
+    document.getElementById('thetav').textContent = thetaDegree+'°';
+    document.getElementById('angline').innerHTML =
+      'Angle (degrees): '+thetaDegree+'　，W = '+wc.toFixed(1)+' J';
+    draw1(); draw2();
+  }
+
+  var running=true, last=null;
+  function loop(ts){
+    if(running){
+      if(last==null) last=ts;
+      var dt=(ts-last)/1000; last=ts;
+      t += 0.1*dt;     // 原 AnimationRate 0.1 单位/秒
+      if(t>10) t=0;
+      draw1();
+    }
+    requestAnimationFrame(loop);
+  }
+  var btn=document.getElementById('btn');
+  btn.addEventListener('click', function(){
+    running=!running; last=null;
+    btn.textContent = running?'暂停':'播放';
+    btn.classList.toggle('active', running);
+  });
+
+  var elTh=document.getElementById('theta');
+  elTh.addEventListener('input', function(){ thetaDegree=parseFloat(elTh.value); drawAll(); });
+  elTh.value=thetaDegree;
+  drawAll();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

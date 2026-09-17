@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>向心力</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 180px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .btns { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+  .btns button { padding: 8px 16px; font-size: 14px; border: 1px solid #ccc;
+                 border-radius: 6px; background: #fff; cursor: pointer; }
+  .btns button.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+  .btns button:disabled { opacity: 0.4; cursor: not-allowed; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>向心力 · 圆周运动</h1>
+  <p class="desc">质点在圆周运动中同时具有法向（向心）加速度与切向加速度。可调角加速度，观察速度矢量、向心力矢量、切向力矢量与合力矢量。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="r">半径 r (m)</label>
+      <input type="range" id="r" min="0.2" max="2" step="0.1" value="1">
+      <span class="val" id="rv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="m">质量 m (kg)</label>
+      <input type="range" id="m" min="0.1" max="5" step="0.1" value="1">
+      <span class="val" id="mv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="w0">初角速度 ω₀ (rad/s)</label>
+      <input type="range" id="w0" min="0.5" max="10" step="0.1" value="3">
+      <span class="val" id="w0v">3.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="alpha">角加速度 α (rad/s²)</label>
+      <input type="range" id="alpha" min="0" max="3" step="0.05" value="0">
+      <span class="val" id="alphav">0.00</span>
+    </div>
+    <div class="ctrl">
+      <label for="t">时间 t (s)</label>
+      <input type="range" id="t" min="0" max="5" step="0.02" value="0">
+      <span class="val" id="tv">0.00</span>
+    </div>
+    <div class="btns">
+      <button id="bVel" class="active">速度矢量</button>
+      <button id="bFn" class="active">向心力矢量</button>
+      <button id="bFt" class="active" disabled>切向力矢量</button>
+      <button id="bFtot" class="active" disabled>合力矢量</button>
+    </div>
+    <div class="btns">
+      <button id="bUniform">匀速模式</button>
+      <button id="bAccel">加速模式</button>
+      <button id="bReset">重置</button>
+      <button id="bPlay" class="active">⏸ 暂停</button>
+    </div>
+  </div>
+  <canvas id="cv" width="700" height="700"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var r=1, m=1, w0=3, alpha=0, t=0;
+  var showVel=true, showFn=true, showFt=true, showFtotal=true;
+  var playing = true;
+  var lastTs=null;
+
+  // PlotRange 1.3*r
+  function makeMapper(){
+    var lim = 1.3*r;
+    var sc = Math.min(W,H)/(2*lim);
+    return function(x,y){ return [W/2+x*sc, H/2-y*sc]; };
+  }
+
+  function arrow(p1,p2,color,lw){
+    var A=P(p1[0],p1[1]), B=P(p2[0],p2[1]);
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw||2;
+    ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke();
+    var ang=Math.atan2(B[1]-A[1],B[0]-A[0]); var hs=9;
+    ctx.beginPath();
+    ctx.moveTo(B[0],B[1]);
+    ctx.lineTo(B[0]-hs*Math.cos(ang-0.4), B[1]-hs*Math.sin(ang-0.4));
+    ctx.lineTo(B[0]-hs*Math.cos(ang+0.4), B[1]-hs*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  var P; // mapper, set in draw
+
+  function draw(){
+    P = makeMapper();
+    ctx.clearRect(0,0,W,H);
+    var theta = w0*t + 0.5*alpha*t*t;
+    var omega = w0 + alpha*t;
+    var v = omega*r;
+    var aN = omega*omega*r;
+    var aT = alpha*r;
+    var Fn = m*aN;
+    var Ft = m*aT;
+    var px = r*Math.cos(theta), py = r*Math.sin(theta);
+
+    // 虚线圆
+    var center = P(0,0);
+    var rPx = r * Math.min(W,H)/(2*1.3*r);
+    ctx.strokeStyle='#999'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.arc(center[0],center[1],rPx,0,2*Math.PI); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 半径线
+    var pp = P(px,py);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(center[0],center[1]); ctx.lineTo(pp[0],pp[1]); ctx.stroke();
+
+    // velVec = v{-sinθ,cosθ}, arrow pos->pos+velVec/2
+    if(showVel){
+      var vdx = v*(-Math.sin(theta))/2, vdy = v*Math.cos(theta)/2;
+      arrow([px,py],[px+vdx,py+vdy],'#e53935',2);
+    }
+    // fnVec = -Fn{cosθ,sinθ}/m = -ω²r{cosθ,sinθ}, arrow pos->pos+fnVec/2
+    if(showFn){
+      var fndx = -Fn*Math.cos(theta)/m/2, fndy = -Fn*Math.sin(theta)/m/2;
+      arrow([px,py],[px+fndx,py+fndy],'#1565c0',2);
+    }
+    // ftVec = Ft{-sinθ,cosθ}, arrow pos->pos+ftVec/2
+    if(showFt && alpha!==0){
+      var ftdx = Ft*(-Math.sin(theta))/2, ftdy = Ft*Math.cos(theta)/2;
+      arrow([px,py],[px+ftdx,py+ftdy],'#2e7d32',1.5);
+    }
+    // fTotalVec = fnVec+ftVec, arrow pos->pos+fTotalVec/2
+    if(showFtotal && alpha!==0){
+      var ftdx2 = Ft*(-Math.sin(theta))/2, ftdy2 = Ft*Math.cos(theta)/2;
+      var fndx2 = -Fn*Math.cos(theta)/m/2, fndy2 = -Fn*Math.sin(theta)/m/2;
+      arrow([px,py],[px+fndx2+ftdx2, py+fndy2+ftdy2],'#7b1fa2',2);
+    }
+
+    // 质点
+    ctx.fillStyle='#ff8f00';
+    ctx.beginPath(); ctx.arc(pp[0],pp[1],0.08*r*Math.min(W,H)/(2*1.3*r),0,2*Math.PI); ctx.fill();
+
+    // 信息面板
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#ccc';
+    var panelX=W*0.62, panelY=H*0.05, pw=260, ph=180;
+    ctx.fillRect(panelX,panelY,pw,ph); ctx.strokeRect(panelX,panelY,pw,ph);
+    ctx.textAlign='left';
+    ctx.fillStyle='#000'; ctx.font='bold 14px "Microsoft YaHei",sans-serif';
+    ctx.fillText('向心力公式', panelX+10, panelY+22);
+    ctx.font='12px "Microsoft YaHei",sans-serif';
+    ctx.fillStyle='#000';
+    ctx.fillText('Fn = m ω² r = '+Fn.toFixed(2)+' N', panelX+10, panelY+46);
+    ctx.fillText('v = ω r = '+v.toFixed(2)+' m/s', panelX+10, panelY+68);
+    ctx.fillText('ω = '+omega.toFixed(2)+' rad/s', panelX+10, panelY+90);
+    if(alpha!==0){
+      var Ftot = Math.sqrt(Fn*Fn+Ft*Ft);
+      ctx.fillText('切向力 Ft = m α r = '+Ft.toFixed(2)+' N', panelX+10, panelY+112);
+      ctx.fillText('合力 F合 = '+Ftot.toFixed(2)+' N', panelX+10, panelY+134);
+    }
+  }
+
+  function loop(ts){
+    if(playing){
+      if(lastTs===null) lastTs=ts;
+      var dt=(ts-lastTs)/1000; lastTs=ts;
+      t += dt;
+      if(t>=5){ t=5; playing=false;
+        document.getElementById('bPlay').textContent='▶ 播放';
+        document.getElementById('bPlay').classList.remove('active');
+      }
+      document.getElementById('t').value=t;
+      document.getElementById('tv').textContent=t.toFixed(2);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function syncToggleBtns(){
+    document.getElementById('bFt').disabled = (alpha===0);
+    document.getElementById('bFtot').disabled = (alpha===0);
+  }
+
+  var rEl=document.getElementById('r'),mEl=document.getElementById('m'),
+      w0El=document.getElementById('w0'),aEl=document.getElementById('alpha'),
+      tEl=document.getElementById('t');
+  rEl.addEventListener('input',function(){ r=+rEl.value; document.getElementById('rv').textContent=r.toFixed(1); draw(); });
+  mEl.addEventListener('input',function(){ m=+mEl.value; document.getElementById('mv').textContent=m.toFixed(1); draw(); });
+  w0El.addEventListener('input',function(){ w0=+w0El.value; document.getElementById('w0v').textContent=w0.toFixed(1); draw(); });
+  aEl.addEventListener('input',function(){ alpha=+aEl.value; document.getElementById('alphav').textContent=alpha.toFixed(2); syncToggleBtns(); draw(); });
+  tEl.addEventListener('input',function(){ t=+tEl.value; document.getElementById('tv').textContent=t.toFixed(2);
+    playing=false; document.getElementById('bPlay').textContent='▶ 播放';
+    document.getElementById('bPlay').classList.remove('active'); draw(); });
+
+  function bindToggle(id, key){
+    var el=document.getElementById(id);
+    el.addEventListener('click', function(){
+      window[key] = !window[key];
+      el.classList.toggle('active', window[key]);
+      el.textContent = el.textContent.replace(/^(显示|隐藏)/, function(m){ return m==='显示'?'隐藏':'显示'; });
+      draw();
+    });
+  }
+  // 用闭包
+  document.getElementById('bVel').addEventListener('click',function(){ showVel=!showVel; this.classList.toggle('active',showVel); draw(); });
+  document.getElementById('bFn').addEventListener('click',function(){ showFn=!showFn; this.classList.toggle('active',showFn); draw(); });
+  document.getElementById('bFt').addEventListener('click',function(){ showFt=!showFt; this.classList.toggle('active',showFt); draw(); });
+  document.getElementById('bFtot').addEventListener('click',function(){ showFtotal=!showFtotal; this.classList.toggle('active',showFtotal); draw(); });
+
+  document.getElementById('bUniform').addEventListener('click',function(){ alpha=0; t=0; aEl.value=0; tEl.value=0;
+    document.getElementById('alphav').textContent='0.00'; document.getElementById('tv').textContent='0.00';
+    syncToggleBtns(); draw(); });
+  document.getElementById('bAccel').addEventListener('click',function(){ alpha=1.5; w0=2; t=0;
+    aEl.value=1.5; w0El.value=2; tEl.value=0;
+    document.getElementById('alphav').textContent='1.50'; document.getElementById('w0v').textContent='2.0';
+    document.getElementById('tv').textContent='0.00'; syncToggleBtns(); draw(); });
+  document.getElementById('bReset').addEventListener('click',function(){
+    r=1; m=1; w0=3; alpha=0; t=0;
+    showVel=showFn=showFt=showFtotal=true;
+    rEl.value=1; mEl.value=1; w0El.value=3; aEl.value=0; tEl.value=0;
+    document.getElementById('rv').textContent='1.0';
+    document.getElementById('mv').textContent='1.0';
+    document.getElementById('w0v').textContent='3.0';
+    document.getElementById('alphav').textContent='0.00';
+    document.getElementById('tv').textContent='0.00';
+    ['bVel','bFn','bFt','bFtot'].forEach(function(id){ document.getElementById(id).classList.add('active'); });
+    syncToggleBtns(); draw(); });
+  document.getElementById('bPlay').addEventListener('click',function(){
+    playing=!playing; lastTs=null;
+    this.textContent = playing?'⏸ 暂停':'▶ 播放';
+    this.classList.toggle('active', playing);
+  });
+
+  syncToggleBtns();
+  draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

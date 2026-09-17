@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>圆周运动</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 160px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .btns { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+  .btns button { padding: 8px 18px; font-size: 14px; border: 1px solid #ccc;
+                 border-radius: 6px; background: #fff; cursor: pointer; }
+  .btns button.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>匀速圆周运动 · 物理量关系</h1>
+  <p class="desc">质点在半径 r 的圆周上以角速度 ω 匀速运动，观察线速度 v、周期 T、频率 f 与转速 n 的关系。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="r">半径 r (m)</label>
+      <input type="range" id="r" min="0.2" max="1.5" step="0.1" value="1">
+      <span class="val" id="rv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="omega">角速度 ω (rad/s)</label>
+      <input type="range" id="omega" min="0.5" max="10" step="0.1" value="2">
+      <span class="val" id="omegav">2.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="t">时间 t</label>
+      <input type="range" id="t" min="0" max="3.14159" step="0.01" value="0">
+      <span class="val" id="tv">0.00</span>
+    </div>
+    <div class="ctrl">
+      <label>显示速度矢量</label>
+      <button id="bVel">显示</button>
+    </div>
+    <div class="btns">
+      <button id="btnResetT">重置时间</button>
+      <button id="btnPlay" class="active">⏸ 暂停动画</button>
+    </div>
+  </div>
+  <canvas id="cv" width="700" height="700"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var r = 1, omega = 2, t = 0;
+  var showVel = true;
+  var playing = true;
+  var lastTs = null;
+
+  // PlotRange 1.5 -> [-1.5,1.5]
+  function sx(x){ return W/2 + x*W/(2*1.5); }
+  function sy(y){ return H/2 - y*H/(2*1.5); }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var theta = omega*t;
+    var v = omega*r;
+    var T = 2*Math.PI/omega;
+    var f = 1/T;
+    var n = f;
+    var px = r*Math.cos(theta);
+    var py = r*Math.sin(theta);
+
+    // 虚线圆
+    ctx.strokeStyle='#999'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.arc(sx(0), sy(0), r*W/(2*1.5), 0, 2*Math.PI); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 半径线
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(sx(0), sy(0)); ctx.lineTo(sx(px), sy(py)); ctx.stroke();
+
+    // 速度箭头
+    if(showVel){
+      var vdx = v*(-Math.sin(theta))/omega; // vel/omega = r*(-sin,cos)
+      var vdy = v*Math.cos(theta)/omega;
+      var ex = px+vdx, ey = py+vdy;
+      ctx.strokeStyle='#e53935'; ctx.fillStyle='#e53935'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(sx(px), sy(py)); ctx.lineTo(sx(ex), sy(ey)); ctx.stroke();
+      var ang = Math.atan2(sy(ey)-sy(py), sx(ex)-sx(px));
+      var hs=10;
+      ctx.beginPath();
+      ctx.moveTo(sx(ex), sy(ey));
+      ctx.lineTo(sx(ex)-hs*Math.cos(ang-0.4), sy(ey)-hs*Math.sin(ang-0.4));
+      ctx.lineTo(sx(ex)-hs*Math.cos(ang+0.4), sy(ey)-hs*Math.sin(ang+0.4));
+      ctx.closePath(); ctx.fill();
+    }
+
+    // 质点
+    ctx.fillStyle='#1565c0';
+    ctx.beginPath(); ctx.arc(sx(px), sy(py), 0.1*r*W/(2*1.5), 0, 2*Math.PI); ctx.fill();
+
+    // 信息文本
+    ctx.fillStyle='#000'; ctx.font='13px sans-serif'; ctx.textAlign='left';
+    var iw = W/(2*1.5);
+    ctx.fillText('v = '+v.toFixed(2)+' m/s', sx(0.36*1.5), sy(0.9*1.5));
+    ctx.fillText('ω = '+omega.toFixed(2)+' rad/s', sx(0.36*1.5), sy(0.84*1.5));
+    ctx.fillText('T = '+T.toFixed(2)+' s', sx(0.36*1.5), sy(0.78*1.5));
+    ctx.fillText('f = '+f.toFixed(2)+' Hz', sx(0.36*1.5), sy(0.72*1.5));
+    ctx.fillText('n = '+n.toFixed(2)+' r/s', sx(0.36*1.5), sy(0.66*1.5));
+  }
+
+  function loop(ts){
+    if(playing){
+      if(lastTs===null) lastTs=ts;
+      var dt=(ts-lastTs)/1000; lastTs=ts;
+      t += dt;
+      var tmax = 2*Math.PI/omega;
+      if(t > tmax) t = 0;
+      document.getElementById('t').value = Math.min(t, tmax);
+      document.getElementById('tv').textContent = t.toFixed(2);
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  var rEl=document.getElementById('r'), oEl=document.getElementById('omega'), tEl=document.getElementById('t');
+  rEl.addEventListener('input', function(){ r=+rEl.value; document.getElementById('rv').textContent=r.toFixed(1);
+    var tmax=2*Math.PI/omega; if(t>tmax)t=tmax; tEl.max=tmax; draw(); });
+  oEl.addEventListener('input', function(){ omega=+oEl.value; document.getElementById('omegav').textContent=omega.toFixed(1);
+    var tmax=2*Math.PI/omega; tEl.max=tmax; if(t>tmax)t=tmax; draw(); });
+  tEl.addEventListener('input', function(){ t=+tEl.value; document.getElementById('tv').textContent=t.toFixed(2);
+    playing=false; document.getElementById('btnPlay').textContent='▶ 播放动画'; draw(); });
+  document.getElementById('bVel').addEventListener('click', function(){
+    showVel=!showVel;
+    this.textContent = showVel?'显示':'隐藏';
+    this.classList.toggle('active', showVel);
+    draw();
+  });
+  document.getElementById('btnResetT').addEventListener('click', function(){ t=0; tEl.value=0; document.getElementById('tv').textContent='0.00'; draw(); });
+  document.getElementById('btnPlay').addEventListener('click', function(){
+    playing=!playing; lastTs=null;
+    this.textContent = playing?'⏸ 暂停动画':'▶ 播放动画';
+    this.classList.toggle('active', playing);
+  });
+
+  draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

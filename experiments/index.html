@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物理可视化交互实验库</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 28px 20px; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 6px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 24px; }
+  h2 { font-size: 17px; margin: 22px 0 12px; padding-left: 10px; border-left: 4px solid #1565c0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  a.card { display:block; background:#fff; border-radius:10px; padding:14px 16px; text-decoration:none;
+           color:#222; box-shadow:0 1px 4px rgba(0,0,0,.07); transition:.15s; border:1px solid #eee; }
+  a.card:hover { transform: translateY(-2px); box-shadow:0 4px 12px rgba(21,101,192,.18); border-color:#90caf9; }
+  a.card .t { font-size:15px; font-weight:600; color:#1565c0; }
+  a.card .s { font-size:12px; color:#888; margin-top:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>物理可视化交互实验库</h1>
+  <p class="desc">全部实验均在浏览器中离线运行，无需安装 Mathematica 或 CDF。点击卡片进入可交互演示。</p>
+
+  <h2>力学基础与牛顿定律</h2>
+  <div class="grid" data-group="mech"></div>
+
+  <h2>功与能量</h2>
+  <div class="grid" data-group="energy"></div>
+
+  <h2>动量与运动的合成</h2>
+  <div class="grid" data-group="motion"></div>
+
+  <h2>电磁学</h2>
+  <div class="grid" data-group="em"></div>
+
+  <h2>光学与偏振</h2>
+  <div class="grid" data-group="optics"></div>
+
+  <h2>函数绘图</h2>
+  <div class="grid" data-group="misc"></div>
+</div>
+<script>
+var data = {
+  mech: [["牛顿第二定律","恒力作用下小车加速"],["力的合成","多力矢量叠加"],["单摆","大角度非线性摆动对比"],
+         ["圆周运动","匀速圆周运动与线速度"],["向心力","受力分解"],["汽车过桥","凸桥/凹桥失重超重"],
+         ["火车转弯","超高轨道与规定速度"],["匀加速函数","v-t / x-t 图像"]],
+  energy: [["功","W=F·s·cosθ"],["动能","Eₖ=½mv²"],["动能定理","合外力做功与动能变化"],
+           ["机械能守恒","动能与势能转化"],["重力势能","Eₚ=mgh"],["机车启动问题","恒功率/恒加速度"]],
+  motion: [["动量定理","冲量与动量变化"],["动量守恒定律","碰撞问题"],["人船模型","人船相对运动"],
+           ["双物体系绳端速度分解","绳端速度分解"],["小船渡河模型","渡河最短时间/位移"],
+           ["运动的合成与分解","平行四边形定则"],["曲线运动","速度与合力方向"],["探究平抛运动的特点","频闪逐差法"]],
+  em: [["点电荷电场可视化","电场线与等势线"],["匀强电场带电粒子轨迹","类平抛偏转"],["带电粒子在极板间运动","极板内偏转"],
+       ["带电粒子在电场中的运动","电势与偏转合并"],["三球静电平衡","静电平衡位置"]],
+  optics: [["反射","反射定律"],["玻璃折射","斯涅尔定律与侧移"],["折射光路可逆与全反射","光路可逆/全反射"],
+           ["光纤反射","全反射光线追踪"],["单缝衍射","夫琅禾费衍射"],["杨氏双缝干涉","干涉条纹"],
+           ["泊松亮斑","菲涅耳圆孔衍射"],["偏振片夹角与光屏","马吕斯定律光路"],["马吕斯定律","I=I₀cos²θ"]],
+  misc: [["交互式模块","y=sin(ax) 函数绘图"]]
+};
+Object.keys(data).forEach(function(g){
+  var box=document.querySelector('[data-group="'+g+'"]');
+  data[g].forEach(function(it){
+    var a=document.createElement('a');
+    a.className='card'; a.href=encodeURI(it[0])+'.html';
+    a.innerHTML='<div class="t">'+it[0]+'</div><div class="s">'+it[1]+'</div>';
+    box.appendChild(a);
+  });
+});
+</script>
+</body>
+</html>

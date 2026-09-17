@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>火车转弯</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .btns { display: flex; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+  .btns button { padding: 8px 18px; font-size: 14px; border: 1px solid #ccc;
+                 border-radius: 6px; background: #fff; cursor: pointer; }
+  .btns button:hover { background: #f0f0f0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>火车转弯 · 外轨高于内轨</h1>
+  <p class="desc">铁路弯道外轨超高，使重力与支持力的合力提供向心力。观察规定速度、超速与低速时侧向弹力的方向。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="slope">倾角 θ (°)</label>
+      <input type="range" id="slope" min="1" max="30" step="0.5" value="8">
+      <span class="val" id="slopev">8.0°</span>
+    </div>
+    <div class="ctrl">
+      <label for="r">转弯半径 r (m)</label>
+      <input type="range" id="r" min="50" max="1000" step="10" value="300">
+      <span class="val" id="rv">300</span>
+    </div>
+    <div class="ctrl">
+      <label for="v">速度 v (m/s)</label>
+      <input type="range" id="v" min="1" max="60" step="0.5" value="20">
+      <span class="val" id="vv">20.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="m">质量 m (kg)</label>
+      <input type="range" id="m" min="10000" max="200000" step="1000" value="50000">
+      <span class="val" id="mv">50000</span>
+    </div>
+    <div class="btns">
+      <button id="bV0">规定速度</button>
+      <button id="bFast">超速</button>
+      <button id="bSlow">低速</button>
+    </div>
+  </div>
+  <canvas id="cv" width="700" height="700"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var g = 9.8;
+  var slopeAngle = 8, r = 300, v = 20, m = 50000;
+
+  // PlotRange {{-3,3},{-2.5,3.5}}
+  var xMin=-3, xMax=3, yMin=-2.5, yMax=3.5;
+  function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+  function sy(y){ return H-(y-yMin)/(yMax-yMin)*H; }
+
+  function arrow(x1,y1,x2,y2,color,lw){
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw||2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var ang = Math.atan2(y2-y1, x2-x1);
+    var hs = 10;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-hs*Math.cos(ang-0.4), y2-hs*Math.sin(ang-0.4));
+    ctx.lineTo(x2-hs*Math.cos(ang+0.4), y2-hs*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var theta = slopeAngle*Math.PI/180;
+    var v0 = Math.sqrt(g*r*Math.tan(theta));
+    var Fneed = m*v*v/r;
+    var Fgs = m*g*Math.tan(theta);
+    var Fextra = Fneed - Fgs;
+    var forceScale = 2/Math.max(m*g, Math.abs(Fneed), 1);
+    var FN = m*g/Math.cos(theta);
+
+    // 水平参考线 y=0
+    ctx.strokeStyle='#999'; ctx.lineWidth=1.5; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(sx(-3),sy(0)); ctx.lineTo(sx(3),sy(0)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 铁轨斜面
+    ctx.strokeStyle='#8B4513'; ctx.lineWidth=5;
+    ctx.beginPath();
+    ctx.moveTo(sx(-3), sy(-3*Math.tan(theta)));
+    ctx.lineTo(sx(3), sy(3*Math.tan(theta)));
+    ctx.stroke();
+
+    // 车厢矩形 {-0.6,-0.3}->{0.6,0.3} 绕原点旋转θ
+    var cx=0, cy=0;
+    ctx.save();
+    ctx.translate(sx(cx), sy(cy));
+    ctx.rotate(-theta); // canvas y向下，逆时针转θ在Wolfram中是向上斜
+    ctx.fillStyle='red';
+    ctx.fillRect(-0.6*W/(xMax-xMin), -0.3*H/(yMax-yMin),
+                 1.2*W/(xMax-xMin), 0.6*H/(yMax-yMin));
+    ctx.restore();
+    ctx.fillStyle='red'; ctx.font='12px sans-serif'; ctx.textAlign='left';
+    ctx.fillText('车厢', sx(0.8), sy(0.5));
+
+    // 重力 mg
+    var mgEndY = -m*g*forceScale;
+    arrow(sx(0), sy(0), sx(0), sy(mgEndY), '#1565c0', 3);
+    ctx.fillStyle='#1565c0';
+    ctx.fillText('mg', sx(0.2), sy(mgEndY-0.2));
+
+    // 支持力 FN: 方向(-sinθ, cosθ)
+    var fnDx = -Math.sin(theta), fnDy = Math.cos(theta);
+    var fnLen = FN*forceScale;
+    arrow(sx(0), sy(0), sx(fnDx*fnLen), sy(fnDy*fnLen), '#2e7d32', 3);
+    ctx.fillStyle='#2e7d32';
+    ctx.fillText('FN', sx(fnDx*fnLen+0.2), sy(fnDy*fnLen+0.2));
+
+    // 合力 F合(向心力): {-Fneed*forceScale, 0}
+    var fnetDx = -Fneed*forceScale;
+    arrow(sx(0), sy(0), sx(fnetDx), sy(0), '#e53935', 3);
+    ctx.fillStyle='#e53935';
+    ctx.fillText('F合 (向心力)', sx(fnetDx), sy(-0.3));
+
+    // 侧向弹力
+    if(Math.abs(Fextra) > 0.01){
+      var feDx = Math.sign(Fextra)*Math.abs(Fextra)*forceScale;
+      arrow(sx(0), sy(0), sx(feDx), sy(0), '#ff8f00', 3);
+      ctx.fillStyle='#ff8f00';
+      ctx.fillText(Fextra>0?'外轨弹力':'内轨弹力', sx(feDx + (feDx>0?0.1:-1.3)), sy(-0.3));
+    }
+
+    // 倾角标注 θ
+    ctx.fillStyle='#000'; ctx.font='14px serif';
+    ctx.fillText('θ', sx(1.2*Math.cos(theta)), sy(1.2*Math.sin(theta)));
+    // 小三角线
+    ctx.strokeStyle='#000'; ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(sx(0.8), sy(0));
+    ctx.lineTo(sx(0.8), sy(0.8*Math.tan(theta)));
+    ctx.stroke();
+
+    // 信息面板
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#ccc';
+    var panelX=W*0.62, panelY=H*0.10, pw=260, ph=140;
+    ctx.fillRect(panelX,panelY,pw,ph);
+    ctx.strokeRect(panelX,panelY,pw,ph);
+    ctx.fillStyle='#000'; ctx.font='12px "Microsoft YaHei", sans-serif'; ctx.textAlign='left';
+    var lines = [];
+    lines.push(['倾角 θ = '+slopeAngle+'°','#000']);
+    lines.push(['半径 r = '+r+' m','#000']);
+    lines.push(['速度 v = '+v.toFixed(1)+' m/s','#000']);
+    lines.push(['规定速度 v₀ = '+v0.toFixed(1)+' m/s','#000']);
+    if(v > v0+0.1) lines.push(['超速: 外轨提供向心力','red']);
+    else if(v < v0-0.1) lines.push(['低速: 内轨抵消部分合力','#1565c0']);
+    else lines.push(['恰好: 无侧向弹力','#2e7d32']);
+    for(var i=0;i<lines.length;i++){
+      ctx.fillStyle=lines[i][1];
+      ctx.fillText(lines[i][0], panelX+10, panelY+20+i*22);
+    }
+  }
+
+  function v0current(){ return Math.sqrt(g*r*Math.tan(slopeAngle*Math.PI/180)); }
+
+  var sEl=document.getElementById('slope'), rEl=document.getElementById('r'),
+      vEl=document.getElementById('v'), mEl=document.getElementById('m');
+  sEl.addEventListener('input', function(){ slopeAngle=+sEl.value; document.getElementById('slopev').textContent=slopeAngle.toFixed(1)+'°'; draw(); });
+  rEl.addEventListener('input', function(){ r=+rEl.value; document.getElementById('rv').textContent=r; draw(); });
+  vEl.addEventListener('input', function(){ v=+vEl.value; document.getElementById('vv').textContent=v.toFixed(1); draw(); });
+  mEl.addEventListener('input', function(){ m=+mEl.value; document.getElementById('mv').textContent=m; draw(); });
+  document.getElementById('bV0').addEventListener('click', function(){ v=v0current(); vEl.value=Math.min(60,v); document.getElementById('vv').textContent=v.toFixed(1); draw(); });
+  document.getElementById('bFast').addEventListener('click', function(){ v=Math.min(60,v0current()*1.6); vEl.value=v; document.getElementById('vv').textContent=v.toFixed(1); draw(); });
+  document.getElementById('bSlow').addEventListener('click', function(){ v=Math.max(1,v0current()*0.6); vEl.value=v; document.getElementById('vv').textContent=v.toFixed(1); draw(); });
+
+  draw();
+})();
+</script>
+</body>
+</html>
