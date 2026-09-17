@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>重力势能</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+  .ctrl label { width: 130px; font-size: 14px; }
+  .ctrl input[type=range] { flex:1; min-width:180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .row { display:flex; gap:16px; flex-wrap:wrap; }
+  canvas { background:#fff; border:1px solid #e0e0e0; border-radius:8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>重力势能</h1>
+  <p class="desc">质量 m = 1 的质点，重力势能 E<sub>p</sub> = mgy 随高度 y 线性变化（g=9.8）。左侧调节位置 (x, y)，右侧为 E<sub>p</sub> − y 关系。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="x">水平位置 x</label>
+      <input type="range" id="x" min="-5" max="5" step="0.01" value="0">
+      <span class="val" id="xv">0.00</span>
+    </div>
+    <div class="ctrl">
+      <label for="y">高度 y</label>
+      <input type="range" id="y" min="0" max="5" step="0.01" value="0">
+      <span class="val" id="yv">0.00</span>
+    </div>
+  </div>
+  <div class="row">
+    <canvas id="cvL" width="450" height="450"></canvas>
+    <canvas id="cvR" width="450" height="450"></canvas>
+  </div>
+</div>
+<script>
+(function(){
+  var g=9.8, m=1;
+  var x=0, y=0;
+  var cvL=document.getElementById('cvL'), cL=cvL.getContext('2d');
+  var cvR=document.getElementById('cvR'), cR=cvR.getContext('2d');
+
+  // 左图 PlotRange {{-5,5},{0,5}}
+  var W=cvL.width,H=cvL.height;
+  var padL=40,padR=16,padT=16,padB=34;
+  function sLx(xx){ return padL+(xx-(-5))/(10)*(W-padL-padR); }
+  function sLy(yy){ return H-padB - (yy-0)/(5-0)*(H-padT-padB); }
+
+  function drawL(){
+    cL.clearRect(0,0,W,H);
+    cL.strokeStyle='#888'; cL.lineWidth=1.5;
+    cL.beginPath(); cL.moveTo(sLx(-5),sLy(0)); cL.lineTo(sLx(5),sLy(0)); cL.stroke();
+    cL.beginPath(); cL.moveTo(sLx(0),sLy(0)); cL.lineTo(sLx(0),sLy(5)); cL.stroke();
+    cL.fillStyle='#555'; cL.font='12px sans-serif';
+    cL.fillText('x', sLx(5)-8, sLy(0)+18);
+    cL.save(); cL.translate(16,(sLy(0)+sLy(5))/2); cL.rotate(-Math.PI/2); cL.fillText('y', -6, 0); cL.restore();
+    // disk radius 0.25 world
+    var rpx = 0.25/10*(W-padL-padR);
+    cL.fillStyle='red';
+    cL.beginPath(); cL.arc(sLx(x), sLy(y), rpx, 0, 2*Math.PI); cL.fill();
+  }
+
+  // 右图 PlotRange {{0,5},{0,m*g*5=49}}
+  var W2=cvR.width,H2=cvR.height;
+  var yMaxR=m*g*5;
+  function sRx(zz){ return padL+(zz-0)/(5-0)*(W2-padL-padR); }
+  function sRy(ee){ return H2-padB - (ee-0)/(yMaxR-0)*(H2-padT-padB); }
+
+  function drawR(){
+    cR.clearRect(0,0,W2,H2);
+    cR.strokeStyle='#888'; cR.lineWidth=1.5;
+    cR.beginPath(); cR.moveTo(sRx(0),sRy(0)); cR.lineTo(sRx(5),sRy(0)); cR.stroke();
+    cR.beginPath(); cR.moveTo(sRx(0),sRy(0)); cR.lineTo(sRx(0),sRy(yMaxR)); cR.stroke();
+    cR.fillStyle='#555'; cR.font='12px sans-serif';
+    cR.fillText('y', sRx(5)-8, sRy(0)+18);
+    cR.save(); cR.translate(16,(sRy(0)+sRy(yMaxR))/2); cR.rotate(-Math.PI/2);
+    cR.fillText('Gravitational Potential Energy', -70, 0); cR.restore();
+    // blue line m g z
+    cR.strokeStyle='#1565c0'; cR.lineWidth=2.5;
+    cR.beginPath();
+    cR.moveTo(sRx(0), sRy(0));
+    cR.lineTo(sRx(5), sRy(m*g*5));
+    cR.stroke();
+    // red point
+    cR.fillStyle='red';
+    cR.beginPath(); cR.arc(sRx(y), sRy(m*g*y), 6, 0, 2*Math.PI); cR.fill();
+  }
+
+  function drawAll(){
+    document.getElementById('xv').textContent=x.toFixed(2);
+    document.getElementById('yv').textContent=y.toFixed(2);
+    drawL(); drawR();
+  }
+  var elX=document.getElementById('x'), elY=document.getElementById('y');
+  elX.addEventListener('input', function(){ x=parseFloat(elX.value); drawAll(); });
+  elY.addEventListener('input', function(){ y=parseFloat(elY.value); drawAll(); });
+  elX.value=x; elY.value=y;
+  drawAll();
+})();
+</script>
+</body>
+</html>

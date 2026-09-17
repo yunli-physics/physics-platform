@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动能</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 160px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .readout { font-size: 15px; margin: 6px 0 10px; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>动能</h1>
+  <p class="desc">质量 m = 1 的质点以速度 v 运动，左侧为速度矢量，右侧为动能 E<sub>k</sub> = ½mv² 随速度的关系曲线。</p>
+  <div class="panel">
+    <div class="readout" id="line1">Velocity v = 0.00</div>
+    <div class="ctrl">
+      <label for="v">速度 v</label>
+      <input type="range" id="v" min="0" max="5" step="0.01" value="0">
+      <span class="val" id="vv">0.00</span>
+    </div>
+  </div>
+  <canvas id="cv1" width="940" height="220"></canvas>
+  <canvas id="cv2" width="940" height="300"></canvas>
+</div>
+<script>
+(function(){
+  var m = 1;
+  var cv1 = document.getElementById('cv1'), ctx1 = cv1.getContext('2d');
+  var cv2 = document.getElementById('cv2'), ctx2 = cv2.getContext('2d');
+  var W = cv1.width, H1 = cv1.height, H2 = cv2.height;
+  var v = 0;
+
+  // 图1 PlotRange {{0,5},{-1,1}}
+  var xMin1=0, xMax1=5, yMin1=-1, yMax1=1;
+  function s1x(x){ return x/xMax1*W; }
+  function s1y(y){ return H1 - (y-yMin1)/(yMax1-yMin1)*H1; }
+
+  function drawAxes(ctx, xMin, xMax, yMin, yMax, W, H, xl, yl){
+    ctx.strokeStyle = '#bbb'; ctx.lineWidth = 1;
+    // x-axis at y=0 if within range
+    if(yMin<0 && yMax>0){ ctx.beginPath(); ctx.moveTo(0, s1y==null?0:0); ctx.stroke(); }
+  }
+
+  function draw1(){
+    ctx1.clearRect(0,0,W,H1);
+    // axes: x-axis at y=0
+    ctx1.strokeStyle = '#888'; ctx1.lineWidth = 1.5;
+    ctx1.beginPath(); ctx1.moveTo(s1x(0), s1y(0)); ctx1.lineTo(s1x(xMax1), s1y(0)); ctx1.stroke();
+    ctx1.beginPath(); ctx1.moveTo(s1x(0), s1y(yMin1)); ctx1.lineTo(s1x(0), s1y(yMax1)); ctx1.stroke();
+    ctx1.fillStyle='#555'; ctx1.font='14px sans-serif';
+    ctx1.fillText('x', W-14, s1y(0)-6);
+    // disk
+    ctx1.fillStyle = 'red';
+    ctx1.beginPath(); ctx1.arc(s1x(0), s1y(0), 0.25/(xMax1-xMin1)*W, 0, 2*Math.PI); ctx1.fill();
+    // arrow
+    if(v>1e-6){
+      ctx1.strokeStyle='red'; ctx1.lineWidth=2.5;
+      ctx1.beginPath(); ctx1.moveTo(s1x(0), s1y(0)); ctx1.lineTo(s1x(v), s1y(0)); ctx1.stroke();
+      // arrowhead
+      var ax=s1x(v), ay=s1y(0);
+      ctx1.fillStyle='red';
+      ctx1.beginPath(); ctx1.moveTo(ax,ay); ctx1.lineTo(ax-10, ay-5); ctx1.lineTo(ax-10, ay+5); ctx1.closePath(); ctx1.fill();
+      ctx1.fillStyle='#222'; ctx1.font='italic 16px serif';
+      ctx1.fillText('v', s1x(v/2)-4, s1y(0.25)-6);
+    }
+  }
+
+  // 图2 PlotRange {{0,5},{0,0.5*m*25=12.5}}
+  var xMin2=0, xMax2=5, yMin2=0, yMax2=0.5*m*25;
+  function s2x(x){ return 50 + (x-xMin2)/(xMax2-xMin2)*(W-70); }
+  function s2y(y){ return 30 + (1 - (y-yMin2)/(yMax2-yMin2))*(H2-60); }
+
+  function draw2(){
+    ctx2.clearRect(0,0,W,H2);
+    var px=s2x(0), pxR=s2x(xMax2), py=s2y(0), pyT=s2y(yMax2);
+    ctx2.strokeStyle='#888'; ctx2.lineWidth=1.5;
+    ctx2.beginPath(); ctx2.moveTo(px,py); ctx2.lineTo(pxR,py); ctx2.stroke();
+    ctx2.beginPath(); ctx2.moveTo(px,py); ctx2.lineTo(px,pyT); ctx2.stroke();
+    ctx2.fillStyle='#555'; ctx2.font='14px sans-serif';
+    ctx2.fillText('v', pxR-10, py+18);
+    ctx2.save(); ctx2.translate(14, (py+pyT)/2); ctx2.rotate(-Math.PI/2);
+    ctx2.fillText('Kinetic Energy', -40, 0); ctx2.restore();
+    // blue curve
+    ctx2.strokeStyle='#1565c0'; ctx2.lineWidth=2.5;
+    ctx2.beginPath();
+    for(var u=0;u<=5;u+=0.05){
+      var ek=0.5*m*u*u;
+      var X=s2x(u), Y=s2y(ek);
+      if(u===0) ctx2.moveTo(X,Y); else ctx2.lineTo(X,Y);
+    }
+    ctx2.stroke();
+    // red point
+    var ekv=0.5*m*v*v;
+    ctx2.fillStyle='red';
+    ctx2.beginPath(); ctx2.arc(s2x(v), s2y(ekv), 6, 0, 2*Math.PI); ctx2.fill();
+  }
+
+  function drawAll(){
+    document.getElementById('vv').textContent = v.toFixed(2);
+    document.getElementById('line1').textContent = 'Velocity v = ' + v.toFixed(2) +
+        '   ，E_k = ' + (0.5*m*v*v).toFixed(2);
+    draw1(); draw2();
+  }
+
+  var el=document.getElementById('v');
+  el.addEventListener('input', function(){ v=parseFloat(el.value); drawAll(); });
+  el.value = v;
+  drawAll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双物体系绳端速度分解</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 170px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 60px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  button { background:#eceff1; border:1px solid #ccc; border-radius:6px; padding:6px 14px;
+           font-size:14px; cursor:pointer; margin:6px 8px 0 0; }
+  button:hover { background:#dde3e6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>双物体绳连接 - 沿绳速度相等</h1>
+  <p class="desc">跨过定滑轮连接两物体，把各自速度沿绳方向分解；不可伸长绳两端沿绳分速度大小相等。</p>
+  <div class="panel">
+    <div class="ctrl"><label>物体1 下落深度 h₁ (m)</label><input type="range" id="h1" min="0.3" max="3.0" step="0.1" value="1.8"><span class="val" id="h1v">1.8</span></div>
+    <div class="ctrl"><label>物体2 水平位置 x₂ (m)</label><input type="range" id="x2" min="0.5" max="5.0" step="0.1" value="3.5"><span class="val" id="x2v">3.5</span></div>
+    <div class="ctrl"><label>物体1 速度 v₁ (m/s)</label><input type="range" id="v1" min="0.1" max="3.0" step="0.1" value="1.5"><span class="val" id="v1v">1.5</span></div>
+    <div class="ctrl"><label>物体2 速度 v₂ (m/s)</label><input type="range" id="v2" min="0.1" max="3.0" step="0.1" value="1.2"><span class="val" id="v2v">1.2</span></div>
+    <button id="preset">预设: 速度匹配</button>
+  </div>
+  <canvas id="cv" width="640" height="560"></canvas>
+</div>
+<script>
+(function(){
+  var P={h1:1.8,x2:3.5,v1:1.5,v2:1.2};
+  var pulley=[2.5,4.5];
+  var cv=document.getElementById('cv'), cx=cv.getContext('2d');
+  var W=cv.width,H=cv.height;
+  // PlotRange {{-0.5,6},{-0.5,5.5}}
+  function sx(x){ return (x+0.5)/6.5*W; }
+  function sy(y){ return H-(y+0.5)/6*H; }
+  function norm(v){ var l=Math.hypot(v[0],v[1]); return l>0.001?[v[0]/l,v[1]/l]:[0,1]; }
+  function arrow(x1,y1,x2,y2,color,lw){
+    cx.strokeStyle=color; cx.lineWidth=lw;
+    cx.beginPath(); cx.moveTo(sx(x1),sy(y1)); cx.lineTo(sx(x2),sy(y2)); cx.stroke();
+    var ang=Math.atan2(sy(y2)-sy(y1), sx(x2)-sx(x1));
+    var hs=9;
+    cx.fillStyle=color;
+    cx.beginPath();
+    cx.moveTo(sx(x2),sy(y2));
+    cx.lineTo(sx(x2)-hs*Math.cos(ang-0.4), sy(y2)-hs*Math.sin(ang-0.4));
+    cx.lineTo(sx(x2)-hs*Math.cos(ang+0.4), sy(y2)-hs*Math.sin(ang+0.4));
+    cx.closePath(); cx.fill();
+  }
+  function update(){
+    var h1=P.h1,x2=P.x2,v1=P.v1,v2=P.v2;
+    var obj1=[2.5,4.5-h1], obj2=[x2,0.3];
+    var rope1Dir=[pulley[0]-obj1[0], pulley[1]-obj1[1]];
+    var r1u=norm(rope1Dir);
+    var rope2Dir=[pulley[0]-obj2[0], pulley[1]-obj2[1]];
+    var r2u=norm(rope2Dir);
+    var vel1=[0,-v1], vel2=[v2,0];
+    var m1=vel1[0]*r1u[0]+vel1[1]*r1u[1]; // vel1AlongMag
+    var m2=vel2[0]*r2u[0]+vel2[1]*r2u[1]; // vel2AlongMag
+    var match=Math.abs(m1+m2)<0.15;
+    cx.clearRect(0,0,W,H);
+    // bg
+    cx.fillStyle='#f2f2f2';
+    cx.fillRect(sx(-1),sy(6),sx(7)-sx(-1),sy(-1)-sy(6));
+    // horizontal plane
+    cx.strokeStyle='#8d6e63'; cx.lineWidth=Math.max(2,(0.02)/6*H);
+    cx.beginPath(); cx.moveTo(sx(0),sy(0.3)); cx.lineTo(sx(6),sy(0.3)); cx.stroke();
+    cx.fillStyle='#8d6e63'; cx.font='14px sans-serif';
+    cx.fillText('水平面',sx(5.5),sy(0.05));
+    // pulley
+    cx.fillStyle='#4d4d4d';
+    cx.beginPath(); cx.arc(sx(pulley[0]),sy(pulley[1]),sx(0.2)-sx(0),0,2*Math.PI); cx.fill();
+    cx.fillStyle='#1a1a1a';
+    cx.beginPath(); cx.arc(sx(pulley[0]),sy(pulley[1]),sx(0.12)-sx(0),0,2*Math.PI); cx.fill();
+    cx.fillStyle='#000'; cx.font='bold 14px sans-serif';
+    cx.fillText('定滑轮',sx(pulley[0]+0.35),sy(pulley[1]+0.2));
+    // rope
+    cx.strokeStyle='#99592e'; cx.lineWidth=Math.max(2,(0.012)/6*H);
+    cx.beginPath(); cx.moveTo(sx(obj1[0]),sy(obj1[1])); cx.lineTo(sx(pulley[0]),sy(pulley[1])); cx.lineTo(sx(obj2[0]),sy(obj2[1])); cx.stroke();
+    // obj1 red square
+    cx.fillStyle='#e63333';
+    cx.fillRect(sx(obj1[0]-0.25),sy(obj1[1]+0.25),sx(obj1[0]+0.25)-sx(obj1[0]-0.25),sy(obj1[1]-0.25)-sy(obj1[1]+0.25));
+    cx.fillStyle='#e63333'; cx.font='bold 14px sans-serif';
+    cx.fillText('物体1',sx(obj1[0]+0.4),sy(obj1[1]));
+    // obj2 blue disk
+    cx.fillStyle='#3380e6';
+    cx.beginPath(); cx.arc(sx(obj2[0]),sy(obj2[1]),sx(0.22)-sx(0),0,2*Math.PI); cx.fill();
+    cx.fillStyle='#3380e6'; cx.font='bold 14px sans-serif';
+    cx.fillText('物体2',sx(obj2[0]),sy(obj2[1]+0.4));
+    // velocity arrows red (0.8*vel)
+    arrow(obj1[0],obj1[1], obj1[0]+0.8*vel1[0], obj1[1]+0.8*vel1[1], '#e62626', 3);
+    arrow(obj2[0],obj2[1], obj2[0]+0.8*vel2[0], obj2[1]+0.8*vel2[1], '#e62626', 3);
+    // along-rope component green
+    var v1ar=[m1*r1u[0],m1*r1u[1]];
+    var v2ar=[m2*r2u[0],m2*r2u[1]];
+    arrow(obj1[0],obj1[1], obj1[0]+v1ar[0], obj1[1]+v1ar[1], '#269933', 2.5);
+    arrow(obj2[0],obj2[1], obj2[0]+v2ar[0], obj2[1]+v2ar[1], '#269933', 2.5);
+    // info box top-right
+    var bx=sx(3.6), by=sy(4.5), bw=250, bh=150;
+    cx.fillStyle='#fff'; cx.strokeStyle='#bbb';
+    roundRect(bx,by,bw,bh,8); cx.fill(); cx.stroke();
+    cx.textAlign='left';
+    cx.fillStyle='#000'; cx.font='bold 15px sans-serif';
+    cx.fillText('沿绳速度相等验证', bx+12, by+24);
+    cx.font='14px sans-serif';
+    cx.fillStyle = match? '#1b5e20':'#e53935'; cx.font='bold 14px sans-serif';
+    cx.fillText('物体1沿绳: '+m1.toFixed(2), bx+12, by+52);
+    cx.fillText('物体2沿绳: '+(-m2).toFixed(2), bx+12, by+76);
+    cx.font='bold 13px sans-serif';
+    cx.fillText(match?'✅ 沿绳分速度大小相等!':'❌ 请调整速度使沿绳分量相等', bx+12, by+108);
+  }
+  function roundRect(x,y,w,h,r){
+    cx.beginPath();
+    cx.moveTo(x+r,y); cx.arcTo(x+w,y,x+w,y+h,r); cx.arcTo(x+w,y+h,x,y+h,r);
+    cx.arcTo(x,y+h,x,y,r); cx.arcTo(x,y,x+w,y,r); cx.closePath();
+  }
+  function bind(id,key){
+    var el=document.getElementById(id);
+    el.addEventListener('input',function(){
+      P[key]=parseFloat(el.value);
+      document.getElementById(id+'v').textContent=parseFloat(el.value).toFixed(1);
+      update();
+    });
+  }
+  bind('h1','h1'); bind('x2','x2'); bind('v1','v1'); bind('v2','v2');
+  document.getElementById('preset').addEventListener('click',function(){
+    P.h1=1.8;P.x2=3.5;P.v1=1.5;
+    var r1u=norm([2.5,4.5]-[2.5,4.5-1.8]);
+    var r2u=norm([2.5,4.5]-[3.5,0.3]);
+    P.v2 = P.v1*r1u[1]/r2u[0];
+    document.getElementById('h1').value=1.8; document.getElementById('h1v').textContent='1.8';
+    document.getElementById('x2').value=3.5; document.getElementById('x2v').textContent='3.5';
+    document.getElementById('v1').value=1.5; document.getElementById('v1v').textContent='1.5';
+    var v2el=document.getElementById('v2'); v2el.value=P.v2;
+    document.getElementById('v2v').textContent=parseFloat(v2el.value).toFixed(1);
+    P.v2=parseFloat(v2el.value);
+    update();
+  });
+  update();
+})();
+</script>
+</body>
+</html>

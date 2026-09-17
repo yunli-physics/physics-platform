@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动量守恒定律（物体碰撞问题）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  table { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 14px; }
+  th,td { border: 1px solid #ccc; padding: 6px 10px; text-align: center; }
+  th { background: #eceff1; }
+  td.l { text-align: left; }
+  .hint { margin-top: 10px; font-size: 14px; color:#888; }
+  .hint.warn { color:#e53935; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>动量守恒定律（物体碰撞问题）</h1>
+  <p class="desc">两物体沿同一直线碰撞，调节质量、初速与恢复系数 e，碰撞前后系统总动量守恒。</p>
+  <div class="panel">
+    <div class="ctrl"><label>碰撞时间 t (s)</label><input type="range" id="t" min="0" max="10" step="0.05" value="0"><span class="val" id="tv">0.00</span></div>
+    <div class="ctrl"><label>质量 m1 (kg)</label><input type="range" id="m1" min="0.5" max="10" step="0.1" value="2"><span class="val" id="m1v">2.0</span></div>
+    <div class="ctrl"><label>初速 v1 (m/s)</label><input type="range" id="v1" min="-10" max="10" step="0.1" value="5"><span class="val" id="v1v">5.0</span></div>
+    <div class="ctrl"><label>质量 m2 (kg)</label><input type="range" id="m2" min="0.5" max="10" step="0.1" value="2"><span class="val" id="m2v">2.0</span></div>
+    <div class="ctrl"><label>初速 v2 (m/s)</label><input type="range" id="v2" min="-10" max="10" step="0.1" value="-3"><span class="val" id="v2v">-3.0</span></div>
+    <div class="ctrl"><label>恢复系数 e</label><input type="range" id="e" min="0" max="1" step="0.01" value="1"><span class="val" id="ev">1.00</span></div>
+    <div class="hint" id="hint">提示：拖动时间 t 观察碰撞过程</div>
+  </div>
+  <canvas id="cv" width="860" height="220"></canvas>
+  <div class="panel" style="margin-top:16px">
+    <div style="font-weight:700;font-size:14px">实时数据监测面板</div>
+    <table>
+      <tr><th></th><th>碰撞前</th><th>碰撞后</th></tr>
+      <tr><td class="l">速度 v1 (m/s)</td><td id="b1">5.00</td><td id="a1">0.00</td></tr>
+      <tr><td class="l">动量 p1 (kg·m/s)</td><td id="pb1">10.00</td><td id="pa1">0.00</td></tr>
+      <tr><td class="l">速度 v2 (m/s)</td><td id="b2">-3.00</td><td id="a2">0.00</td></tr>
+      <tr><td class="l">动量 p2 (kg·m/s)</td><td id="pb2">-6.00</td><td id="pa2">0.00</td></tr>
+      <tr><td class="l">系统总动量 P (kg·m/s)</td><td id="pbT">4.00</td><td id="paT">0.00</td></tr>
+    </table>
+  </div>
+</div>
+<script>
+(function(){
+  var P={t:0,m1:2,v1:5,m2:2,v2:-3,e:1};
+  var x1Init=-8, x2Init=8;
+  var cv=document.getElementById('cv'), cx=cv.getContext('2d');
+  var W=cv.width,H=cv.height;
+  // PlotRange {{-13,13},{-2,2}}
+  function sx(x){ return (x+13)/26*W; }
+  function sy(y){ return H/2 - (y/4)*H; }
+  function num(v,d){ return v.toFixed(d); }
+  function update(){
+    var m1=P.m1,v1=P.v1,m2=P.m2,v2=P.v2,e=P.e;
+    var v1A=(m1*v1+m2*v2+e*m2*(v2-v1))/(m1+m2);
+    var v2A=(m1*v1+m2*v2+e*m1*(v1-v2))/(m1+m2);
+    var tCol = (v1>v2) ? (x2Init-x1Init)/(v1-v2) : 1000;
+    var x1, x2;
+    if(P.t<=tCol){ x1=x1Init+v1*P.t; x2=x2Init+v2*P.t; }
+    else { x1=x1Init+v1*tCol+v1A*(P.t-tCol); x2=x2Init+v2*tCol+v2A*(P.t-tCol); }
+    // table
+    document.getElementById('b1').textContent=num(v1,2);
+    document.getElementById('a1').textContent=num(v1A,2);
+    document.getElementById('b2').textContent=num(v2,2);
+    document.getElementById('a2').textContent=num(v2A,2);
+    document.getElementById('pb1').textContent=num(m1*v1,2);
+    document.getElementById('pa1').textContent=num(m1*v1A,2);
+    document.getElementById('pb2').textContent=num(m2*v2,2);
+    document.getElementById('pa2').textContent=num(m2*v2A,2);
+    document.getElementById('pbT').textContent=num(m1*v1+m2*v2,2);
+    document.getElementById('paT').textContent=num(m1*v1A+m2*v2A,2);
+    var h=document.getElementById('hint');
+    if(v1<=v2){ h.textContent='提示：请设置 v1 > v2 才能发生碰撞'; h.className='hint warn'; }
+    else { h.textContent='提示：拖动时间 t 观察碰撞过程'; h.className='hint'; }
+    // draw
+    cx.clearRect(0,0,W,H);
+    cx.strokeStyle='#000'; cx.lineWidth=3;
+    cx.beginPath(); cx.moveTo(sx(-12),sy(0)); cx.lineTo(sx(12),sy(0)); cx.stroke();
+    // m1 blue
+    var r=sx(0.7)-sx(0);
+    cx.fillStyle='#1565c0';
+    cx.beginPath(); cx.arc(sx(x1),sy(0),r,0,2*Math.PI); cx.fill();
+    cx.fillStyle='#fff'; cx.font='bold 12px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('m1',sx(x1),sy(0));
+    cx.fillStyle='#1565c0'; cx.font='10px sans-serif';
+    cx.fillText(num(v1,2),sx(x1),sy(0.9));
+    // m2 red
+    cx.fillStyle='#e53935';
+    cx.beginPath(); cx.arc(sx(x2),sy(0),r,0,2*Math.PI); cx.fill();
+    cx.fillStyle='#fff'; cx.font='bold 12px sans-serif';
+    cx.fillText('m2',sx(x2),sy(0));
+    cx.fillStyle='#e53935'; cx.font='10px sans-serif';
+    cx.fillText(num(v2,2),sx(x2),sy(0.9));
+    cx.textAlign='left'; cx.textBaseline='alphabetic';
+  }
+  function bind(id,key,dec){
+    var el=document.getElementById(id);
+    el.addEventListener('input',function(){
+      P[key]=parseFloat(el.value);
+      document.getElementById(id+'v').textContent=parseFloat(el.value).toFixed(dec);
+      update();
+    });
+  }
+  bind('t','t',2); bind('m1','m1',1); bind('v1','v1',1); bind('m2','m2',1); bind('v2','v2',1); bind('e','e',2);
+  update();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机械能守恒</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ptitle { font-size: 13px; color:#888; margin-bottom:8px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 10px 0; flex-wrap: wrap; }
+  .ctrl label { width: 160px; font-size: 14px; }
+  .ctrl input[type=range] { flex:1; min-width:180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .row { display:flex; gap:16px; flex-wrap: wrap; }
+  canvas { background:#fff; border:1px solid #e0e0e0; border-radius:8px; display:block; }
+  .total { font-size:15px; margin-top:12px; font-weight:600; color:#2e7d32; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>机械能守恒</h1>
+  <p class="desc">自由下落过程中势能转化为动能，总机械能守恒（g=9.8，m=2）。调节初高 h₀ 与瞬时速度 v，高度 h = h₀ − v²/2g 自动联动。</p>
+  <div class="panel">
+    <div class="ptitle">Adjust Parameters</div>
+    <div class="ctrl">
+      <label for="h0">Initial Height h₀</label>
+      <input type="range" id="h0" min="5" max="20" step="0.1" value="5">
+      <span class="val" id="h0v">5.0 m</span>
+    </div>
+    <div class="ctrl">
+      <label for="v">Speed v</label>
+      <input type="range" id="v" min="0" max="9.9" step="0.01" value="0">
+      <span class="val" id="vv">0.0 m/s</span>
+    </div>
+  </div>
+  <div class="row">
+    <canvas id="cvL" width="450" height="450"></canvas>
+    <canvas id="cvR" width="450" height="450"></canvas>
+  </div>
+  <div class="total" id="total">Total E = 98.0 J (Constant)</div>
+</div>
+<script>
+(function(){
+  var g = 9.8, m = 2;
+  var h0 = 5, v = 0;           // 初始 h = h0
+  var cvL = document.getElementById('cvL'), cL = cvL.getContext('2d');
+  var cvR = document.getElementById('cvR'), cR = cvR.getContext('2d');
+
+  function vMaxCur(){ return Math.sqrt(2*g*h0); }
+
+  // 通用映射：传入 ctx, 宽高, xyrange
+  function makeMap(W,H,xmin,xmax,ymin,ymax){
+    var padL=44,padR=16,padT=14,padB=34;
+    return {
+      W:W,H:H,
+      sx:function(x){ return padL + (x-xmin)/(xmax-xmin)*(W-padL-padR); },
+      sy:function(y){ return H-padB - (y-ymin)/(ymax-ymin)*(H-padT-padB); },
+      frame:function(ctx){
+        ctx.strokeStyle='#999'; ctx.lineWidth=1;
+        ctx.strokeRect(padL,padT,W-padL-padR,H-padT-padB);
+      }
+    };
+  }
+
+  function drawL(){
+    var ep = m*g*h;
+    var xmin=-3, xmax=h0+2, ymin=-10, ymax=m*g*h0+10;
+    var mp = makeMap(cvL.width,cvL.height,xmin,xmax,ymin,ymax);
+    var ctx=cL;
+    ctx.clearRect(0,0,cvL.width,cvL.height);
+    mp.frame(ctx);
+    // 坐标轴：x轴 (0,0)->(h0,0), y轴 (0,0)->(0,mgh0)
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(mp.sx(0),mp.sy(0)); ctx.lineTo(mp.sx(h0),mp.sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mp.sx(0),mp.sy(0)); ctx.lineTo(mp.sx(0),mp.sy(m*g*h0)); ctx.stroke();
+    ctx.fillStyle='#000'; ctx.font='12px sans-serif';
+    ctx.fillText('h (m)', mp.sx(h0/2)-16, mp.sy(-5));
+    ctx.save(); ctx.translate(mp.sx(-2)-14, mp.sy(m*g*h0/2)); ctx.rotate(-Math.PI/2);
+    ctx.fillText('E_p (J)', -20, 0); ctx.restore();
+    // 红点
+    ctx.fillStyle='red';
+    ctx.beginPath(); ctx.arc(mp.sx(h), mp.sy(ep), 6, 0, 2*Math.PI); ctx.fill();
+    // 文本 at (h+1, ep)
+    ctx.fillStyle='#000'; ctx.font='11px sans-serif';
+    var L1='h='+h.toFixed(1)+'m', L2='E_p='+ep.toFixed(1)+'J';
+    ctx.fillText(L1, mp.sx(h+1), mp.sy(ep)-8);
+    ctx.fillText(L2, mp.sx(h+1), mp.sy(ep)+8);
+  }
+
+  function drawR(){
+    var ek = 0.5*m*v*v;
+    var vMax = vMaxCur();
+    var xmin=-3, xmax=vMax+2, ymin=-10, ymax=m*g*h0+10;
+    var mp = makeMap(cvR.width,cvR.height,xmin,xmax,ymin,ymax);
+    var ctx=cR;
+    ctx.clearRect(0,0,cvR.width,cvR.height);
+    mp.frame(ctx);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(mp.sx(0),mp.sy(0)); ctx.lineTo(mp.sx(vMax),mp.sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(mp.sx(0),mp.sy(0)); ctx.lineTo(mp.sx(0),mp.sy(m*g*h0)); ctx.stroke();
+    ctx.fillStyle='#000'; ctx.font='12px sans-serif';
+    ctx.fillText('v (m/s)', mp.sx(vMax/2)-16, mp.sy(-5));
+    ctx.save(); ctx.translate(mp.sx(-2)-14, mp.sy(m*g*h0/2)); ctx.rotate(-Math.PI/2);
+    ctx.fillText('E_k (J)', -20, 0); ctx.restore();
+    ctx.fillStyle='red';
+    ctx.beginPath(); ctx.arc(mp.sx(v), mp.sy(ek), 6, 0, 2*Math.PI); ctx.fill();
+    ctx.fillStyle='#000'; ctx.font='11px sans-serif';
+    var L1='v='+v.toFixed(1)+'m/s', L2='E_k='+ek.toFixed(1)+'J';
+    ctx.fillText(L1, mp.sx(v+0.5), mp.sy(ek)-8);
+    ctx.fillText(L2, mp.sx(v+0.5), mp.sy(ek)+8);
+  }
+
+  var h = h0;
+  function syncH(){ h = h0 - v*v/(2*g); }
+
+  function drawAll(){
+    syncH();
+    document.getElementById('h0v').textContent = h0.toFixed(1)+' m';
+    document.getElementById('vv').textContent = v.toFixed(1)+' m/s';
+    document.getElementById('total').textContent =
+        'Total E = ' + (m*g*h0).toFixed(1) + ' J (Constant)';
+    drawL(); drawR();
+  }
+
+  var elH0=document.getElementById('h0'), elV=document.getElementById('v');
+  elH0.addEventListener('input', function(){
+    h0=parseFloat(elH0.value);
+    var vm=vMaxCur();
+    elV.max=vm;
+    if(v>vm){ v=vm; elV.value=vm; }
+    drawAll();
+  });
+  elV.addEventListener('input', function(){
+    v=parseFloat(elV.value);
+    drawAll();
+  });
+  elH0.value=h0; elV.value=v;
+  elV.max=vMaxCur();
+  drawAll();
+})();
+</script>
+</body>
+</html>
