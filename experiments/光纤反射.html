@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>光纤反射</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 130px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>光纤反射（全反射光线追踪）</h1>
+  <p class="desc">光线在上下平行反射壁之间反复全反射前进。调节光纤长度、入射高度与入射角，观察反射光路。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="L">光纤长度 L</label>
+      <input type="range" id="L" min="1" max="20" step="0.1" value="10">
+      <span class="val" id="Lv">10.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="X">入射高度 X</label>
+      <input type="range" id="X" min="0" max="2" step="0.01" value="1">
+      <span class="val" id="Xv">1.00</span>
+    </div>
+    <div class="ctrl">
+      <label for="th">入射夹角 θ (度)</label>
+      <input type="range" id="th" min="-90" max="90" step="0.5" value="30">
+      <span class="val" id="thv">30.0°</span>
+    </div>
+  </div>
+  <canvas id="cv" width="940" height="360"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  // 物理世界坐标范围（与原 Wolfram 一致）
+  var d = 2, xMin = -1, xMax = 22, yMin = -0.5, yMax = 2.5, Lmax = 20;
+  var L = 10, X = 1, th = 30;
+
+  function sx(x){ return (x - xMin) / (xMax - xMin) * W; }
+  function sy(y){ return H - (y - yMin) / (yMax - yMin) * H; }
+
+  function trace(){
+    var thRad = th * Math.PI / 180;
+    var dx = Math.cos(thRad), dy = Math.sin(thRad);
+    var pts = [];
+    var edgeCase = (X === 0 && dy > 0) || (X === d && dy < 0);
+    if(edgeCase) return pts;
+    var x0 = 0, y0 = d - X;
+    pts.push([x0, y0]);
+    var iter = 0;
+    while(iter < 2000){
+      iter++;
+      var tTop = dy > 0 ? (d - y0)/dy : Infinity;
+      var tBot = dy < 0 ? (0 - y0)/dy : Infinity;
+      var t = Math.min(tTop>1e-10?tTop:Infinity, tBot>1e-10?tBot:Infinity);
+      if(t === Infinity){
+        var tE = (L - x0)/dx, yE = y0 + dy*tE;
+        pts.push([L, yE]); break;
+      }
+      var x = x0 + dx*t, y = y0 + dy*t;
+      if(x >= L - 1e-6){
+        var tE2 = (L - x0)/dx, yE2 = y0 + dy*tE2;
+        pts.push([L, yE2]); break;
+      }
+      pts.push([x, y]);
+      x0 = x; y0 = y; dy = -dy;
+    }
+    return pts;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // 边界
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(0)); ctx.lineTo(sx(L),sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(d)); ctx.lineTo(sx(L),sy(d)); ctx.stroke();
+    ctx.fillStyle = '#888'; ctx.font = '16px sans-serif';
+    ctx.fillText('光纤', sx(L/2)-18, sy(d/2)+6);
+    // 光线
+    var pts = trace();
+    if(pts.length >= 2){
+      ctx.strokeStyle = '#e53935'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(sx(pts[0][0]), sy(pts[0][1]));
+      for(var i=1;i<pts.length;i++) ctx.lineTo(sx(pts[i][0]), sy(pts[i][1]));
+      ctx.stroke();
+    }
+    // 入射点
+    ctx.fillStyle = '#e53935';
+    ctx.beginPath(); ctx.arc(sx(pts[0][0]), sy(pts[0][1]), 4, 0, 2*Math.PI); ctx.fill();
+  }
+
+  function bind(id, key, fmt, suffix){
+    var el = document.getElementById(id), out = document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      key && (eval(key + ' = ' + parseFloat(el.value)));
+      out.textContent = fmt(parseFloat(el.value)) + (suffix||'');
+      draw();
+    });
+  }
+  document.getElementById('L').value = L;
+  document.getElementById('X').value = X;
+  document.getElementById('th').value = th;
+  bind('L','L',function(v){return v.toFixed(1);});
+  bind('X','X',function(v){return v.toFixed(2);});
+  bind('th','th',function(v){return v.toFixed(1);},'°');
+  draw();
+})();
+</script>
+</body>
+</html>
