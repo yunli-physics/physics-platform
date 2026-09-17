@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>马吕斯定律</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 180px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+  .col { flex: 1; min-width: 320px; }
+  .col h3 { font-size: 14px; text-align: center; margin-bottom: 6px; color:#333; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+  .note { margin-top: 12px; font-size: 13px; color:#444; line-height:1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>马吕斯定律 I=I₀cos²φ</h1>
+  <p class="desc">自然光经起偏器后强度减半；转动检偏器夹角 φ，出射光强按 cos²φ 变化。左：I(φ) 曲线；右：光屏灰度随 φ 变化。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="phi">检偏器夹角 φ (°)</label>
+      <input type="range" id="phi" min="0" max="180" step="1" value="0">
+      <span class="val" id="phiv">0°</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <h3>I(φ) = I₀ cos²φ</h3>
+      <canvas id="cv1" width="440" height="300"></canvas>
+    </div>
+    <div class="col">
+      <h3>光屏亮度</h3>
+      <canvas id="cv2" width="220" height="220"></canvas>
+    </div>
+  </div>
+  <div class="note" id="note"></div>
+</div>
+<script>
+(function(){
+  var phiDeg = 0;
+  var cv1 = document.getElementById('cv1'), ctx1 = cv1.getContext('2d');
+  var cv2 = document.getElementById('cv2'), ctx2 = cv2.getContext('2d');
+
+  function drawPlot(){
+    var W=cv1.width, H=cv1.height;
+    ctx1.clearRect(0,0,W,H);
+    ctx1.fillStyle='#fff'; ctx1.fillRect(0,0,W,H);
+    var padL=44, padR=14, padT=14, padB=38;
+    var pw=W-padL-padR, ph=H-padT-padB;
+    function X(x){ return padL + x/180*pw; }
+    function Y(y){ return padT + ph - y*ph/1.05; }
+    // 网格
+    ctx1.strokeStyle='#ececec'; ctx1.lineWidth=1;
+    for(var gx=0; gx<=180; gx+=30){
+      ctx1.beginPath(); ctx1.moveTo(X(gx),padT); ctx1.lineTo(X(gx),padT+ph); ctx1.stroke();
+    }
+    // 坐标轴
+    ctx1.strokeStyle='#333'; ctx1.lineWidth=1.5;
+    ctx1.beginPath(); ctx1.moveTo(padL,Y(0)); ctx1.lineTo(padL+pw,Y(0)); ctx1.stroke();
+    ctx1.beginPath(); ctx1.moveTo(padL,padT); ctx1.lineTo(padL,padT+ph); ctx1.stroke();
+    // 曲线
+    ctx1.strokeStyle='#1565c0'; ctx1.lineWidth=2;
+    ctx1.beginPath();
+    for(var i=0;i<=360;i++){
+      var x = i/2;
+      var rad = x*Math.PI/180;
+      var y = Math.pow(Math.cos(rad),2);
+      if(i===0) ctx1.moveTo(X(x),Y(y)); else ctx1.lineTo(X(x),Y(y));
+    }
+    ctx1.stroke();
+    // 当前点
+    var rad = phiDeg*Math.PI/180;
+    var yNow = Math.pow(Math.cos(rad),2);
+    ctx1.fillStyle='#e53935';
+    ctx1.beginPath(); ctx1.arc(X(phiDeg),Y(yNow),5,0,2*Math.PI); ctx1.fill();
+    // 轴标签
+    ctx1.fillStyle='#333'; ctx1.font='12px sans-serif'; ctx1.textAlign='center';
+    ctx1.fillText('φ (°)', padL+pw/2, H-8);
+    ctx1.textAlign='right'; ctx1.fillText('I/I₀', padL-6, padT+10);
+  }
+
+  function drawScreen(){
+    var W=cv2.width, H=cv2.height;
+    ctx2.clearRect(0,0,W,H);
+    ctx2.fillStyle='#fff'; ctx2.fillRect(0,0,W,H);
+    var rad = phiDeg*Math.PI/180;
+    var cos2 = Math.pow(Math.cos(rad),2);
+    var gray = Math.round(cos2*255);
+    // 起偏器
+    var cx1=50, cy=H/2, r=38;
+    ctx2.strokeStyle='#555'; ctx2.lineWidth=2;
+    ctx2.beginPath(); ctx2.arc(cx1,cy,r,0,2*Math.PI); ctx2.stroke();
+    ctx2.strokeStyle='#1565c0'; ctx2.lineWidth=2;
+    ctx2.beginPath(); ctx2.moveTo(cx1,cy-r); ctx2.lineTo(cx1,cy+r); ctx2.stroke();
+    ctx2.fillStyle='#222'; ctx2.font='12px sans-serif'; ctx2.textAlign='center';
+    ctx2.fillText('P', cx1, cy-r-8);
+    // 检偏器
+    var cx2=110;
+    ctx2.strokeStyle='#555'; ctx2.lineWidth=2;
+    ctx2.beginPath(); ctx2.arc(cx2,cy,r,0,2*Math.PI); ctx2.stroke();
+    ctx2.strokeStyle='#1565c0'; ctx2.lineWidth=2;
+    var a=rad;
+    ctx2.beginPath();
+    ctx2.moveTo(cx2-r*Math.cos(a), cy-r*Math.sin(a));
+    ctx2.lineTo(cx2+r*Math.cos(a), cy+r*Math.sin(a));
+    ctx2.stroke();
+    ctx2.fillStyle='#222'; ctx2.fillText('A φ='+phiDeg.toFixed(0)+'°', cx2, cy-r-8);
+    // 光屏
+    var sx=160, sw=50;
+    ctx2.fillStyle='rgb('+gray+','+gray+','+gray+')';
+    ctx2.fillRect(sx, cy-r, sw, 2*r);
+    ctx2.strokeStyle='#000'; ctx2.lineWidth=2;
+    ctx2.strokeRect(sx, cy-r, sw, 2*r);
+    ctx2.fillStyle='#222'; ctx2.fillText('屏', sx+sw/2, cy+r+16);
+  }
+
+  function draw(){
+    drawPlot();
+    drawScreen();
+    var rad = phiDeg*Math.PI/180;
+    var cos2 = Math.pow(Math.cos(rad),2);
+    document.getElementById('note').textContent =
+      'φ = '+phiDeg.toFixed(0)+'°，cos²φ = '+cos2.toFixed(4)+'，相对出射强度 = '+cos2.toFixed(4)+'（φ=90° 正交时为 0）。';
+  }
+
+  var el = document.getElementById('phi'), out = document.getElementById('phiv');
+  el.addEventListener('input', function(){
+    phiDeg = parseFloat(el.value);
+    out.textContent = phiDeg.toFixed(0)+'°';
+    draw();
+  });
+  el.value = phiDeg;
+  draw();
+})();
+</script>
+</body>
+</html>
