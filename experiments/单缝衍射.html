@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>单缝衍射</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>单缝衍射</h1>
+  <p class="desc">单缝夫琅禾费衍射：调节缝宽 b、波长 λ 与屏距 L，观察接收屏上的衍射光强分布与暗纹位置。β = π b y/(λ L)，I/I₀ = (sinβ/β)²。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="b">缝宽 b</label>
+      <input type="range" id="b" min="1.0" max="3.0" step="0.01" value="2.0">
+      <span class="val" id="bv">2.00</span>
+    </div>
+    <div class="ctrl">
+      <label for="lam">波长 λ</label>
+      <input type="range" id="lam" min="0.40" max="0.70" step="0.005" value="0.55">
+      <span class="val" id="lamv">0.55</span>
+    </div>
+    <div class="ctrl">
+      <label for="L">屏距 L</label>
+      <input type="range" id="L" min="15.0" max="25.0" step="0.1" value="20.0">
+      <span class="val" id="Lv">20.0</span>
+    </div>
+  </div>
+  <canvas id="cv" width="1000" height="600"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  // 与原 Wolfram 一致的世界坐标
+  var xSlit = 3.0, yRange = 22, xMin = 0, xMax = 70, maxRedLen = 18, step = 0.04;
+  var b = 2.0, lam = 0.55, L = 20.0;
+
+  function sx(x){ return (x - xMin) / (xMax - xMin) * W; }
+  function sy(y){ return H - (y - (-yRange)) / (2*yRange) * H; }
+
+  function intensity(y){
+    var beta = Math.PI * b * y / (lam * L);
+    if(Math.abs(beta) < 1e-9) return 1.0;
+    return Math.pow(Math.sin(beta)/beta, 2);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // 白底
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,W,H);
+
+    var yDark1 = lam*L/b, yDark2 = 2*lam*L/b;
+    var screenX = xSlit + L;
+    var yTop = b/2, yBottom = -b/2, yCenter = 0;
+    var screenCenter = [screenX, 0];
+    var screenDark1 = [screenX, yDark1];
+    var screenDark2 = [screenX, yDark2];
+
+    // 入射光红色箭头 (0.5,0)->(xSlit-0.1,0)
+    ctx.strokeStyle = '#e53935'; ctx.fillStyle = '#e53935'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx(0.5), sy(0)); ctx.lineTo(sx(xSlit-0.1), sy(0)); ctx.stroke();
+    // 箭头头部
+    drawArrowHead(sx(xSlit-0.1), sy(0), sx(0.5), sy(0));
+
+    // 单缝挡板粗黑线
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(sx(xSlit), sy(-yRange)); ctx.lineTo(sx(xSlit), sy(yRange)); ctx.stroke();
+    // 白色缝口
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx(xSlit-0.08), sy(yTop), (0.16/(xMax-xMin))*W, sy(yBottom)-sy(yTop));
+
+    // 9 条衍射光线
+    function raySet(color, op, target){
+      ctx.strokeStyle = color; ctx.globalAlpha = op; ctx.lineWidth = 1.2;
+      [yTop, yCenter, yBottom].forEach(function(ys){
+        ctx.beginPath(); ctx.moveTo(sx(xSlit), sy(ys)); ctx.lineTo(sx(target[0]), sy(target[1])); ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
+    raySet('#e53935', 0.7, screenCenter);
+    raySet('#1e88e5', 0.7, screenDark1);
+    raySet('rgb(255,204,0)', 0.7, screenDark2);
+
+    // 接收屏极细黑线
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(sx(screenX), sy(-yRange)); ctx.lineTo(sx(screenX), sy(yRange)); ctx.stroke();
+
+    // 光强红线
+    ctx.strokeStyle = '#e53935'; ctx.lineWidth = 1;
+    for(var y = -yRange; y <= yRange; y += step){
+      var iVal = intensity(y);
+      var lineLen = iVal * maxRedLen;
+      if(lineLen > 0.002){
+        ctx.beginPath();
+        ctx.moveTo(sx(screenX), sy(y));
+        ctx.lineTo(sx(screenX+lineLen), sy(y));
+        ctx.stroke();
+      }
+    }
+
+    // 文字标注
+    ctx.fillStyle = '#000'; ctx.font = 'bold 16px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('红线长度 = 光强大小', sx(xMax-3.5), sy(yRange-1.2));
+    ctx.textAlign = 'center';
+    var bs = b.toFixed(2), ls = lam.toFixed(2), Ls = L.toFixed(1);
+    ctx.font = 'bold 14px "Microsoft YaHei", sans-serif';
+    ctx.fillText('缝宽 b = ' + bs + '    波长 λ = ' + ls + '    屏距 L = ' + Ls, sx(xMax/2), sy(yRange-0.8));
+  }
+
+  function drawArrowHead(tx, ty, fromX, fromY){
+    var ang = Math.atan2(ty - fromY, tx - fromX);
+    var s = 8;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - s*Math.cos(ang - Math.PI/7), ty - s*Math.sin(ang - Math.PI/7));
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx - s*Math.cos(ang + Math.PI/7), ty - s*Math.sin(ang + Math.PI/7));
+    ctx.stroke();
+  }
+
+  function bind(id, key, fmt){
+    var el = document.getElementById(id), out = document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      var v = parseFloat(el.value);
+      if(key==='b') b=v; else if(key==='lam') lam=v; else L=v;
+      out.textContent = fmt(v);
+      draw();
+    });
+  }
+  document.getElementById('b').value = b;
+  document.getElementById('lam').value = lam;
+  document.getElementById('L').value = L;
+  bind('b','b',function(v){return v.toFixed(2);});
+  bind('lam','lam',function(v){return v.toFixed(3);});
+  bind('L','L',function(v){return v.toFixed(1);});
+  draw();
+})();
+</script>
+</body>
+</html>
