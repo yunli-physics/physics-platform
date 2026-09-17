@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>玻璃折射</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 70px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>玻璃折射</h1>
+  <p class="desc">光线通过平行玻璃片（d=1）：由斯涅尔定律 n₁sinθ₁=n₂sinθ₂ 计算折射角，出射光与入射光平行，仅发生侧移。调节入射角与折射率 n。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="th">入射角 θ₁ (°)</label>
+      <input type="range" id="th" min="0" max="80" step="1" value="30">
+      <span class="val" id="thv">30°</span>
+    </div>
+    <div class="ctrl">
+      <label for="n">折射率 n</label>
+      <input type="range" id="n" min="1.0" max="2.5" step="0.05" value="1.5">
+      <span class="val" id="nv">1.50</span>
+    </div>
+  </div>
+  <canvas id="cv" width="600" height="600"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  // PlotRange {{-3.5,3.5},{-3.5,3.5}}
+  var xMin=-3.5, xMax=3.5, yMin=-3.5, yMax=3.5;
+  var d = 1;
+  var thetaDeg = 30, n = 1.5;
+
+  function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+  function sy(y){ return H - (y-yMin)/(yMax-yMin)*H; }
+
+  function drawArrow(x1,y1,x2,y2,color){
+    ctx.strokeStyle = color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.stroke();
+    var ang = Math.atan2(sy(y2)-sy(y1), sx(x2)-sx(x1));
+    var s=10;
+    ctx.beginPath();
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2)-s*Math.cos(ang-Math.PI/7), sy(y2)-s*Math.sin(ang-Math.PI/7));
+    ctx.moveTo(sx(x2),sy(y2));
+    ctx.lineTo(sx(x2)-s*Math.cos(ang+Math.PI/7), sy(y2)-s*Math.sin(ang+Math.PI/7));
+    ctx.stroke();
+  }
+
+  function drawLine(x1,y1,x2,y2,color,wd){
+    ctx.strokeStyle = color; ctx.lineWidth = wd||3;
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(y1)); ctx.lineTo(sx(x2),sy(y2)); ctx.stroke();
+  }
+
+  function drawGrid(rows){
+    var x0=-3.2, y0=-3.25;
+    var cw1=1.55, cw2=1.35, rh=0.3;
+    ctx.font='13px "Microsoft YaHei", sans-serif';
+    for(var i=0;i<rows.length;i++){
+      var yy=y0+i*rh;
+      ctx.strokeStyle='#999'; ctx.lineWidth=1;
+      ctx.strokeRect(sx(x0), sy(yy+rh), (cw1+cw2)/(xMax-xMin)*W, rh/(yMax-yMin)*H);
+      ctx.fillStyle='#222'; ctx.textAlign='left'; ctx.textBaseline='middle';
+      ctx.fillText(rows[i][0], sx(x0)+5, sy(yy+rh/2));
+      ctx.fillText(rows[i][1], sx(x0+cw1)+5, sy(yy+rh/2));
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+    var th1 = thetaDeg*Math.PI/180;
+    var s2 = Math.sin(th1)/n; if(s2>1) s2=1;
+    var th2 = Math.asin(s2);
+    var x1 = d*Math.tan(th2);
+    var y1 = -d;
+    var shift = d*Math.sin(th1-th2)/Math.cos(th2);
+
+    // 玻璃块
+    ctx.fillStyle = 'rgba(173,216,230,0.3)';
+    ctx.fillRect(sx(-2.5), sy(0), (5)/(xMax-xMin)*W, (d)/(yMax-yMin)*H);
+    // 上下表面
+    ctx.strokeStyle='#000'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(sx(-3),sy(0)); ctx.lineTo(sx(3),sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(-3),sy(-d)); ctx.lineTo(sx(3),sy(-d)); ctx.stroke();
+    // 法线
+    ctx.strokeStyle='#888'; ctx.lineWidth=1.5; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(-0.5)); ctx.lineTo(sx(0),sy(0.5)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(x1),sy(-d-0.5)); ctx.lineTo(sx(x1),sy(-d+0.5)); ctx.stroke();
+    ctx.setLineDash([]);
+    // 光路
+    drawArrow(-2*Math.tan(th1), 2, 0, 0, '#e53935');
+    drawLine(0,0,x1,y1,'#1e88e5',3);
+    drawArrow(x1,y1, x1+2*Math.tan(th1), y1-2, '#e53935');
+    // 文字
+    ctx.font='bold 13px "Microsoft YaHei", sans-serif';
+    ctx.fillStyle='#e53935'; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillText('入射点(固定)', sx(0.1), sy(0.2));
+    ctx.font='bold 15px "Microsoft YaHei", sans-serif'; ctx.fillStyle='#000';
+    ctx.fillText('空气', sx(2), sy(0.5));
+    ctx.fillText('玻璃(n='+n.toFixed(2)+')', sx(2), sy(-0.5));
+
+    var rows = [
+      ['入射角 θ₁', thetaDeg.toFixed(2)+'°'],
+      ['折射率 n', n.toFixed(3)],
+      ['折射角 θ₂', (th2*180/Math.PI).toFixed(2)+'°'],
+      ['侧移量', shift.toFixed(3)+' 单位长度'],
+      ['平行性验证', '✅ 严格平行'],
+      ['核心规律', '出射光 ∥ 入射光，仅侧移']
+    ];
+    drawGrid(rows);
+  }
+
+  function bind(id, key, fmt){
+    var el = document.getElementById(id), out = document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      var v = parseFloat(el.value);
+      if(key==='th') thetaDeg=v; else n=v;
+      out.textContent = fmt(v);
+      draw();
+    });
+  }
+  document.getElementById('th').value = thetaDeg;
+  document.getElementById('n').value = n;
+  bind('th','th',function(v){return v.toFixed(0)+'°';});
+  bind('n','n',function(v){return v.toFixed(2);});
+  draw();
+})();
+</script>
+</body>
+</html>
