@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>点电荷电场可视化</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+         background: #f5f7fa; color: #222; padding: 20px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  p.desc { color: #666; font-size: 14px; margin-bottom: 16px; }
+  .panel { background: #fff; border-radius: 10px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.08); margin-bottom: 16px; }
+  .ctrl { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  .ctrl label { width: 150px; font-size: 14px; }
+  .ctrl input[type=range] { flex: 1; min-width: 180px; }
+  .ctrl .val { width: 80px; text-align: right; font-variant-numeric: tabular-nums;
+               font-weight: 600; color: #1565c0; }
+  .chk { display: flex; align-items: center; gap: 6px; margin: 6px 0; font-size: 14px; }
+  canvas { width: 100%; background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; display:block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>点电荷电场分布与试探电荷受力</h1>
+  <p class="desc">中心场源电荷产生径向电场与等势球面（圆）。移动试探电荷，观察所受电场力方向与大小。</p>
+  <div class="panel">
+    <div class="ctrl">
+      <label for="q">场源电荷 q / C</label>
+      <input type="range" id="q" min="-50" max="50" step="0.5" value="1">
+      <span class="val" id="qv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="qTest">试探电荷 q₀ / C</label>
+      <input type="range" id="qTest" min="-50" max="50" step="0.5" value="1">
+      <span class="val" id="qTestv">1.0</span>
+    </div>
+    <div class="ctrl">
+      <label for="x0">试探电荷 x₀ / m</label>
+      <input type="range" id="x0" min="-1.8" max="1.8" step="0.05" value="1">
+      <span class="val" id="x0v">1.00</span>
+    </div>
+    <div class="ctrl">
+      <label for="y0">试探电荷 y₀ / m</label>
+      <input type="range" id="y0" min="-1.8" max="1.8" step="0.05" value="0.5">
+      <span class="val" id="y0v">0.50</span>
+    </div>
+    <div class="chk"><input type="checkbox" id="showFieldLines" checked><label for="showFieldLines">显示电场线</label></div>
+    <div class="chk"><input type="checkbox" id="showEquipotential" checked><label for="showEquipotential">显示等势线</label></div>
+    <div class="chk"><input type="checkbox" id="showInfo" checked><label for="showInfo">显示数值信息</label></div>
+    <div class="chk"><input type="checkbox" id="showLegend" checked><label for="showLegend">显示图例</label></div>
+  </div>
+  <canvas id="cv" width="560" height="560"></canvas>
+</div>
+<script>
+(function(){
+  var cv = document.getElementById('cv');
+  var ctx = cv.getContext('2d');
+  var W = cv.width, H = cv.height;
+  var xMin=-2.4, xMax=2.4, yMin=-2.4, yMax=2.4;
+  var q=1, qTest=1, x0=1, y0=0.5;
+  var showFieldLines=true, showEquipotential=true, showInfo=true, showLegend=true;
+
+  function sx(x){ return (x-xMin)/(xMax-xMin)*W; }
+  function sy(y){ return H-(y-yMin)/(yMax-yMin)*H; }
+  function log10(v){ return Math.log(v)/Math.LN10; }
+  function numForm(v, digits){
+    // mimic Mathematica NumberForm: scientific if |v|>100, else fixed
+    var a = Math.abs(v);
+    if (a > 100 && a < 1e-3 || a >= 1000) {
+      var e = Math.floor(Math.log(a)/Math.LN10);
+      if (e < 3) return v.toFixed(2);
+      var mant = v/Math.pow(10,e);
+      return mant.toFixed(1)+"e"+e;
+    }
+    return v.toFixed(digits===undefined?2:digits);
+  }
+  function fmt(v,d){ return v.toFixed(d===undefined?2:d); }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var i,j;
+    var maxAbsQ = Math.max(Math.abs(q),0.1);
+
+    // axes
+    ctx.strokeStyle='#333'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(sx(xMin),sy(0)); ctx.lineTo(sx(xMax),sy(0)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(0),sy(yMin)); ctx.lineTo(sx(0),sy(yMax)); ctx.stroke();
+    ctx.fillStyle='#333'; ctx.font='12px sans-serif';
+    ctx.fillText('x / m', sx(xMax)-40, sy(0)-6);
+    ctx.fillText('y / m', sx(0)+6, sy(yMax)+14);
+
+    // equipotential circles
+    if (showEquipotential) {
+      var numContours = Math.min(12, Math.floor(4 + 3*log10(maxAbsQ+1)));
+      ctx.strokeStyle='rgba(255,140,0,0.8)'; ctx.setLineDash([6,4]); ctx.lineWidth=1.5;
+      if (Math.abs(q) > 0.01) {
+        for (i=1;i<=numContours;i++){
+          var denom = 1 + 0.25*i + 0.015*i*i;
+          var r = Math.sqrt(denom*denom - 0.001);
+          if (r > 2.4) continue;
+          ctx.beginPath(); ctx.arc(sx(0), sy(0), Math.abs(sx(r)-sx(0)), 0, 2*Math.PI); ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+    }
+
+    // field lines (radial rays)
+    var numLines = Math.round(12 + 18*log10(maxAbsQ+1));
+    numLines = Math.max(8, Math.min(56, numLines));
+    var startR=0.12, boundaryR=2.35;
+    var fieldDir = q>=0?1:-1;
+    if (showFieldLines) {
+      ctx.strokeStyle='#0000ff';
+      ctx.lineWidth = 1 + 0.5*log10(maxAbsQ+1);
+      for (i=0;i<numLines;i++){
+        var ang = i * 2*Math.PI/numLines;
+        var cx = Math.cos(ang), cy = Math.sin(ang);
+        ctx.beginPath();
+        ctx.moveTo(sx(startR*cx), sy(startR*cy));
+        ctx.lineTo(sx(boundaryR*cx), sy(boundaryR*cy));
+        ctx.stroke();
+        // arrow at 40% along
+        var midR = startR + 0.4*(boundaryR-startR);
+        var mx = midR*cx, my = midR*cy;
+        var alen = 0.08*fieldDir;
+        var ex = mx + alen*cx, ey = my + alen*cy;
+        drawArrow(sx(mx),sy(my),sx(ex),sy(ey),'#0000ff', 0.02+0.005*log10(maxAbsQ+1)* (W/(xMax-xMin)));
+      }
+    }
+
+    // source charge disk
+    var chargeColor = q>=0 ? '#ff0000' : '#0000ff';
+    ctx.fillStyle = chargeColor;
+    ctx.beginPath(); ctx.arc(sx(0),sy(0), Math.abs(sx(0.12)-sx(0)), 0, 2*Math.PI); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.font='bold 13px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(q>=0?'+q':'-q', sx(0), sy(0)+5);
+    ctx.textAlign='left';
+    ctx.fillStyle=chargeColor; ctx.font='bold 11px sans-serif';
+    ctx.fillText('场源电荷', sx(0)-22, sy(-0.25));
+    ctx.fillText('q = '+fmt(q,1)+' C', sx(0)-22, sy(-0.4));
+    ctx.fillStyle='#0000ff'; ctx.font='10px sans-serif';
+    ctx.fillText('电场线数: '+numLines, sx(0)-26, sy(-0.55));
+
+    // physics at test charge
+    var r2 = x0*x0+y0*y0+0.001;
+    var eMag = q / Math.pow(r2, 1.5); // q/(r^3)
+    var ex = eMag*x0, ey = eMag*y0;
+    var eNorm = Math.sqrt(ex*ex+ey*ey);
+    var pot = q/Math.sqrt(x0*x0+y0*y0+0.001);
+    var dist = Math.sqrt(x0*x0+y0*y0);
+    var forceMagnitude = Math.abs(qTest)*eNorm;
+    var forceDir = qTest>=0?1:-1;
+    var fvx = forceDir*ex, fvy = forceDir*ey;
+    var fnorm = Math.sqrt(fvx*fvx+fvy*fvy);
+    var scaledForce = 0;
+    if (forceMagnitude>0.001 && eNorm>0.001){
+      var denom = maxAbsQ * (Math.max(Math.abs(qTest),0.1)/50) + 0.01;
+      scaledForce = Math.min(0.6*forceMagnitude/denom, 0.6);
+    }
+
+    // test charge
+    var testColor = qTest>=0 ? '#ff4db3' : '#4d80ff';
+    ctx.fillStyle=testColor;
+    ctx.beginPath(); ctx.arc(sx(x0),sy(y0), 4, 0, 2*Math.PI); ctx.fill();
+    ctx.strokeStyle=testColor; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.arc(sx(x0),sy(y0), Math.abs(sx(x0+0.06)-sx(x0)), 0, 2*Math.PI); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=testColor; ctx.font='bold 11px sans-serif';
+    ctx.fillText('试探电荷', sx(x0+0.15), sy(y0-0.18));
+    ctx.font='10px sans-serif';
+    ctx.fillText('q₀ = '+fmt(qTest,1)+' C', sx(x0+0.15), sy(y0-0.33));
+
+    // force arrow
+    if (scaledForce > 0.0001) {
+      var ux = fvx/fnorm, uy = fvy/fnorm;
+      var fx1 = x0+scaledForce*ux, fy1 = y0+scaledForce*uy;
+      ctx.strokeStyle='#ff0000'; ctx.lineWidth=2.5;
+      drawArrow(sx(x0),sy(y0),sx(fx1),sy(fy1),'#ff0000', 8);
+      ctx.fillStyle='#ff0000'; ctx.font='bold 13px sans-serif';
+      ctx.fillText('F', sx(x0+1.1*scaledForce*ux), sy(y0+1.1*scaledForce*uy));
+      ctx.font='bold 11px sans-serif';
+      ctx.fillText('F = '+numForm(forceMagnitude)+' N', sx(x0+0.35), sy(y0-0.50));
+      var dirText = qTest>0 ? '受力沿E方向' : (qTest<0 ? '受力与E相反' : 'F=0');
+      ctx.fillText(dirText, sx(x0+0.35), sy(y0-0.63));
+    } else {
+      ctx.fillStyle='#888'; ctx.font='11px sans-serif';
+      ctx.fillText('F = 0 N', sx(x0+0.35), sy(y0-0.50));
+    }
+
+    // info
+    if (showInfo) {
+      ctx.fillStyle='#000'; ctx.font='11px sans-serif';
+      ctx.fillText('E = '+numForm(eNorm)+' N/C', sx(x0+0.35), sy(y0+0.48));
+      ctx.fillText('V = '+numForm(pot)+' V', sx(x0+0.35), sy(y0+0.30));
+      ctx.fillStyle='#666';
+      ctx.fillText('r = '+fmt(dist,2)+' m', sx(x0+0.35), sy(y0+0.12));
+    }
+
+    // legend
+    if (showLegend) {
+      ctx.font='11px sans-serif';
+      ctx.fillStyle='#0000ff';
+      ctx.fillText('电场线 →', sx(-2.1), sy(2.1));
+      ctx.fillStyle='#ff8c00';
+      ctx.fillText('等势线 (虚线)', sx(-2.1), sy(1.9));
+      ctx.fillStyle='#cc33cc';
+      ctx.fillText('试探电荷 ●', sx(-2.1), sy(1.7));
+      ctx.fillStyle='#ff0000';
+      ctx.fillText('受力 F →', sx(-2.1), sy(1.5));
+    }
+  }
+
+  function drawArrow(x1,y1,x2,y2,color,headLen){
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    var ang = Math.atan2(y2-y1,x2-x1);
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-headLen*Math.cos(ang-0.4), y2-headLen*Math.sin(ang-0.4));
+    ctx.lineTo(x2-headLen*Math.cos(ang+0.4), y2-headLen*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  function bind(id, key, fmtFn, suffix){
+    var el=document.getElementById(id), out=document.getElementById(id+'v');
+    el.addEventListener('input', function(){
+      eval(key + ' = ' + parseFloat(el.value));
+      out.textContent = fmtFn(parseFloat(el.value))+(suffix||'');
+      draw();
+    });
+  }
+  bind('q','q',function(v){return v.toFixed(1);});
+  bind('qTest','qTest',function(v){return v.toFixed(1);});
+  bind('x0','x0',function(v){return v.toFixed(2);});
+  bind('y0','y0',function(v){return v.toFixed(2);});
+  document.getElementById('showFieldLines').addEventListener('change',function(){showFieldLines=this.checked;draw();});
+  document.getElementById('showEquipotential').addEventListener('change',function(){showEquipotential=this.checked;draw();});
+  document.getElementById('showInfo').addEventListener('change',function(){showInfo=this.checked;draw();});
+  document.getElementById('showLegend').addEventListener('change',function(){showLegend=this.checked;draw();});
+  draw();
+})();
+</script>
+</body>
+</html>
